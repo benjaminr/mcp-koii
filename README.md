@@ -1,9 +1,9 @@
-# KOII - MCP Interface for EP-133 K.O. II
+# MCP Interface for Teenage Engineering EP-133 K.O. II
 
 <img src="./mcp.jpg" width="318">
 <img src="./koii.jpg" width="200">
 
-KOII (KO-II Interface) is a Model Context Protocol (MCP) server that enables controlling the Teenage Engineering EP-133 K.O. II sampler via MIDI
+This project is a Model Context Protocol (MCP) server that acts as a controller for the Teenage Engineering EP-133 K.O. II sampler via MIDI
 
 ## Features
 
@@ -43,9 +43,7 @@ mcp install koii_server.py:server -e .
 
 2. Launch Claude Desktop with MCP enabled.
 
-3. Copy the content from `koii/templates/claude_prompt_template.md` into your conversation with Claude to provide context about what KOII can do.
-
-4. Start controlling your EP-133 K.O. II by asking Claude natural language questions like:
+3. Start controlling your EP-133 K.O. II by asking Claude natural language questions like:
    - "List available MIDI ports"
    - "Connect to the EP-133 device"
    - "Play a C major scale"
