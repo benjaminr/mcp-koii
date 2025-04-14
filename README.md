@@ -1,9 +1,6 @@
 # MCP Interface for Teenage Engineering EP-133 K.O. II
 
-<figure markdown>
-   <img src="./mcp.jpg" width="318">
-   <img src="./koii.jpg" width="200">
-</figure>
+<img src="./mcp.jpg" width="318"><img src="./koii.jpg" width="200">
 
 This project is a Model Context Protocol (MCP) server that acts as a controller for the Teenage Engineering EP-133 K.O. II sampler via MIDI
 
