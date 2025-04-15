@@ -87,39 +87,31 @@ The EP-133 K.O. II responds to the following MIDI messages:
 
 The drum pattern system supports four different ways to reference sounds:
 
-### 1. Using instrument names:
-```
-x...x...x...x...  # kick
-....x.......x...  # snare
-x.x.x.x.x.x.x.x.  # hi-hat
-```
-
-### 2. Using pad references:
+### 1. Using pad references:
 ```
 x...x...x...x...  # A.
 ....x.......x...  # A2
 x.x.x.x.x.x.x.x.  # A5
 ```
 
-### 3. Using MIDI note numbers:
+### 2. Using MIDI note numbers:
 ```
 x...x...x...x...  # 36
 ....x.......x...  # 40
 x.x.x.x.x.x.x.x.  # 43
 ```
 
-### 4. Using sound names:
+### 3. Using sound names:
 ```
 x...x...x...x...  # "MICRO KICK"
 ....x.......x...  # "NT SNARE"
 x.x.x.x.x.x.x.x.  # "NT HH CLOSED"
 ```
 
-### 5. Mixed references:
+### 4. Mixed references:
 ```
 x...x...x...x...  # A.       (pad reference)
 ....x.......x...  # 40       (MIDI note)
-x.x.x.x.x.x.x.x.  # hi-hat   (instrument name)
 ......x.........  # "NT RIDE" (sound name)
 ```
 
@@ -132,22 +124,6 @@ x.x.x.x.x.x.x.x.  # hi-hat   (instrument name)
 - Each position represents a 16th note
 - Comments after '#' specify what sound to trigger using any of the reference methods
 - Multiple instruments can be triggered simultaneously with their hits overlapping
-
-## Default Drum Mappings
-
-| Instrument      | Pad | MIDI Note | Default Sound     |
-|-----------------|-----|-----------|-------------------|
-| kick            | A.  | 36 (C2)   | MICRO KICK        |
-| snare           | A2  | 40 (E2)   | NT SNARE ALT      |
-| clap            | A3  | 41 (F2)   | NT CLAP           |
-| low tom         | A4  | 42 (F#2)  | NT TAMBO          |
-| closed hi-hat   | A5  | 43 (G2)   | NT HH CLOSED      |
-| mid tom         | A6  | 44 (G#2)  | NT RIDE           |
-| high tom/perc   | A7  | 45 (A2)   | NT PERC           |
-| open hi-hat/ride| A8  | 46 (A#2)  | NT HH OPEN        |
-| crash/cymbal    | A9  | 47 (B2)   | NT RIDE C         |
-| bass            | B.  | 48 (C3)   | NT BASS           |
-| melodic         | C.  | 60 (C4)   | BLUE              |
 
 ## Troubleshooting
 
