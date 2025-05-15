@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/benjaminr-mcp-koii-badge.png)](https://mseep.ai/app/benjaminr-mcp-koii)
+
 # MCP Interface for Teenage Engineering EP-133 K.O. II
 
 <img src="./mcp.jpg" width="318"><img src="./koii.jpg" width="200">
