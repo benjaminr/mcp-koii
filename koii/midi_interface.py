@@ -5,15 +5,23 @@ This module provides a Python interface for communicating with the
 Teenage Engineering EP-133 K.O. II via MIDI.
 
 EP-133 K.O. II MIDI Specification (OS 2.0+):
-- MIDI channels: 1-16 (default channel 1, receives on all channels)
+- MIDI channels: 1-16 (default channel 1, OMNI ON receives on all channels)
 - Note ranges: Group A (36-47), Group B (48-59), Group C (60-71), Group D (72-83)
-- Keys mode: notes 0-127
-- Supports: Note On/Off, Velocity, Pitch Bend (receive), CC#0/32/1, Program Change, Clock
-- Does not support: Aftertouch, SysEx, Song Position/Select, Active Sensing
-- Internal clock resolution: 96 PPQN
+- Keys mode: notes 0-127 (chromatic playback of selected sample)
+- Supports: Note On/Off, Velocity, Pitch Bend (receive), CC#0/32/1,
+  Program Change, Clock, Start/Stop/Continue, Song Position, SysEx (identity),
+  All Sound Off, Reset All Controllers, All Notes Off
+- Does not support: Aftertouch (output), System Reset
+- Note: Program Change was removed from device mapping in OS 2.0.2 (Oct 2025);
+  PC messages can still be recorded/relayed via MIDI thru but no longer switch sounds.
+  Use Bank Select (CC#0/32) + Program Change for sound addressing.
+- Internal clock resolution: 96 PPQN (MIDI clock is standard 24 PPQN)
 - MIDI I/O via USB and TRS-A (3.3V, MMA compliant)
 - OS 2.0+ features: MIDI thru, per-pad MIDI channel assignment,
   MIDI note map, pitch bend/mod wheel affect playback
+- Pad layout: 12 pads per group (., 0, Enter, 1-9) — the "Enter" pad is
+  the third pad in the bottom row (MIDI offset +2), not to be confused
+  with the separate FX button used for punch-in effects.
 """
 
 import time
@@ -189,17 +197,21 @@ SOUND_LIBRARY = {
     }
 }
 
-# Default pad configuration mapping.
+# Default pad configuration mapping (Project 1 factory preset).
 # Layout per channel is a 4x3 grid, ordered bottom-to-top:
-#   Row 0: [pad_dot, pad_0, pad_FX]  (bottom special row)
-#   Row 1: [pad_1,   pad_2, pad_3]   (bottom numbered row)
-#   Row 2: [pad_4,   pad_5, pad_6]   (middle numbered row)
-#   Row 3: [pad_7,   pad_8, pad_9]   (top numbered row)
+#   Row 0: [pad_dot, pad_0, pad_enter]  (bottom special row)
+#   Row 1: [pad_1,   pad_2, pad_3]      (bottom numbered row)
+#   Row 2: [pad_4,   pad_5, pad_6]      (middle numbered row)
+#   Row 3: [pad_7,   pad_8, pad_9]      (top numbered row)
+# Note: The third pad in the bottom row is officially labeled "Enter" (↵)
+# by Teenage Engineering. It is NOT the FX button (which is a separate
+# hardware button for punch-in effects). We accept both "FX" and "Enter"
+# as pad references for backwards compatibility.
 # Values are sound IDs from SOUND_LIBRARY.
 DEFAULT_PAD_CONFIG = {
     "A": {  # Channel A - Drums & Percussion
         "pads": [
-            [1, 21, 300],       # A., A0, AFX: MICRO KICK, NT ALT KICK, NT CLAP
+            [1, 21, 300],       # A., A0, A↵: MICRO KICK, NT ALT KICK, NT CLAP
             [100, 114, 130],    # A1, A2, A3: NT SNARE, NT SNARE ALT, NT RIMSHOT
             [317, 200, 218],    # A4, A5, A6: NT TAMBO, NT HH CLOSED, NT HH OPEN
             [343, 235, 247],    # A7, A8, A9: NT PERC, NT RIDE, NT RIDE C
@@ -207,7 +219,7 @@ DEFAULT_PAD_CONFIG = {
     },
     "B": {  # Channel B - Bass
         "pads": [
-            [400, 405, 410],    # B., B0, BFX: NT BASS, MP3K SUB, CAT ENVELOPE
+            [400, 405, 410],    # B., B0, B↵: NT BASS, MP3K SUB, CAT ENVELOPE
             [415, 420, 425],    # B1, B2, B3: PRODIGY SUB, OB SUB, SYNTH 4TH HIT
             [430, 402, 404],    # B4, B5, B6: P.SIX SIMPLE, TUBRO BASS, BASIC
             [407, 408, 401],    # B7, B8, B9: UPRIGHT SUB, E BASS PICK, S95X ROUND
@@ -215,12 +227,13 @@ DEFAULT_PAD_CONFIG = {
     },
     "C": {  # Channel C - Melodic & Synth
         "pads": [
-            [500, 505, 510],    # C., C0, CFX: BLUE, ULTRA, SKYLINE STRING
+            [500, 505, 510],    # C., C0, C↵: BLUE, ULTRA, SKYLINE STRING
             [515, 520, 525],    # C1, C2, C3: EPIANO 360, EPIANO 360 BASS, SYNTH MICRO FUNK
             [530, 343, 540],    # C4, C5, C6: CELLO 360, NT PERC, SKY LEAD
             [545, 550, 555],    # C7, C8, C9: PLING CHORD, LOOK ORGAN, NT CHORDY
         ]
     }
+    # Channel D (72-83): Empty by default — reserved for user samples.
 }
 
 # MIDI note name to number mapping
@@ -516,11 +529,16 @@ class MIDIInterface:
     
     def send_program_change(self, program: int) -> bool:
         """
-        Send a program change message to switch samples.
-        
+        Send a program change message.
+
+        Note: As of EP-133 OS 2.0.2 (Oct 2025), Program Change is no longer
+        mapped on the device — PC messages can be recorded and relayed via
+        MIDI thru, but will not switch sounds on pads. Use Bank Select
+        (CC#0/32) + Program Change for full sound addressing (1-999).
+
         Args:
             program: Program number (0-127)
-            
+
         Returns:
             bool: True if successful, False otherwise
         """
@@ -594,20 +612,23 @@ class MIDIInterface:
         The physical layout of the EP-133 K.O. II pads is mapped to MIDI notes as follows:
         
         For Channel A:
-        +----+----+----+
-        | A7 | A8 | A9 |  = [45, 46, 47]  (Top row)
-        +----+----+----+
-        | A4 | A5 | A6 |  = [42, 43, 44]  (Middle row)
-        +----+----+----+
-        | A1 | A2 | A3 |  = [39, 40, 41]  (Bottom row)
-        +----+----+----+
-        | A. | A0 | FX |  = [36, 37, 38]  (Bottom special row)
-        +----+----+----+
-        
+        +------+------+------+
+        |  A7  |  A8  |  A9  |  = [45, 46, 47]  (Top row)
+        +------+------+------+
+        |  A4  |  A5  |  A6  |  = [42, 43, 44]  (Middle row)
+        +------+------+------+
+        |  A1  |  A2  |  A3  |  = [39, 40, 41]  (Bottom row)
+        +------+------+------+
+        |  A.  |  A0  | A↵   |  = [36, 37, 38]  (Bottom special row)
+        +------+------+------+
+
+        The third pad in the bottom row is officially labeled "Enter" (↵) by TE.
+        Both "FX" and "ENTER" are accepted as pad references for this pad.
+
         The same pattern applies to channels B (starting at 48), C (starting at 60), and D (starting at 72).
-        
+
         Args:
-            pad_reference: Pad reference string (e.g., 'A0', 'B3', 'C7')
+            pad_reference: Pad reference string (e.g., 'A0', 'B3', 'C7', 'AENTER')
             
         Returns:
             int: MIDI note number
@@ -633,8 +654,8 @@ class MIDIInterface:
         elif pad_reference[1:] == '0':
             # A0 = 37, B0 = 49, etc. (bottom middle)
             offset = 1
-        elif pad_reference[1:].upper() == 'FX':
-            # AFX = 38, BFX = 50, etc. (bottom right)
+        elif pad_reference[1:].upper() in ('FX', 'ENTER', '↵'):
+            # A↵/AFX/AENTER = 38, B↵/BFX = 50, etc. (bottom right, "Enter" pad)
             offset = 2
         else:
             try:
@@ -737,9 +758,10 @@ class MIDIInterface:
                 return note_num
             raise ValueError(f"MIDI note {note_num} is out of range (0-127)")
 
-        # Case 3: Pad reference (A0, B3, C., DFX, etc.)
+        # Case 3: Pad reference (A0, B3, C., DFX, DENTER, etc.)
         if (len(ref_stripped) >= 2 and ref_stripped[0].upper() in PAD_GROUPS and
-            (ref_stripped[1:].isdigit() or ref_stripped[1:] == '.' or ref_stripped[1:].upper() == 'FX')):
+            (ref_stripped[1:].isdigit() or ref_stripped[1:] == '.' or
+             ref_stripped[1:].upper() in ('FX', 'ENTER', '↵'))):
             try:
                 note = self.pad_to_note(ref_stripped)
                 logger.info(f"Interpreted as pad reference: {ref_stripped} → MIDI note {note}")
@@ -996,7 +1018,7 @@ class MIDIInterface:
             row, col = 0, 0
         elif suffix == '0':
             row, col = 0, 1
-        elif suffix.upper() == 'FX':
+        elif suffix.upper() in ('FX', 'ENTER', '↵'):
             row, col = 0, 2
         else:
             try:
