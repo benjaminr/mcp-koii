@@ -1,14 +1,26 @@
 """
 MIDI Interface for EP-133 K.O. II
 
-This module provides a Python interface for communicating with the 
+This module provides a Python interface for communicating with the
 Teenage Engineering EP-133 K.O. II via MIDI.
+
+EP-133 K.O. II MIDI Specification (OS 2.0+):
+- MIDI channels: 1-16 (default channel 1, receives on all channels)
+- Note ranges: Group A (36-47), Group B (48-59), Group C (60-71), Group D (72-83)
+- Keys mode: notes 0-127
+- Supports: Note On/Off, Velocity, Pitch Bend (receive), CC#0/32/1, Program Change, Clock
+- Does not support: Aftertouch, SysEx, Song Position/Select, Active Sensing
+- Internal clock resolution: 96 PPQN
+- MIDI I/O via USB and TRS-A (3.3V, MMA compliant)
+- OS 2.0+ features: MIDI thru, per-pad MIDI channel assignment,
+  MIDI note map, pitch bend/mod wheel affect playback
 """
 
 import time
 import logging
 import re
-from typing import Dict, List, Optional, Tuple, Union, Set
+import copy
+from typing import Dict, List, Optional, Tuple, Union, Set, Any
 
 import mido
 from mido.ports import BaseOutput
@@ -18,16 +30,73 @@ logger = logging.getLogger(__name__)
 
 # Constants based on EP-133 K.O. II MIDI specification
 PAD_GROUPS = {
-    "A": range(36, 48),  # C2-B2
-    "B": range(48, 60),  # C3-B3
-    "C": range(60, 72),  # C4-B4
-    "D": range(72, 84),  # C5-B5
+    "A": range(36, 48),  # C2-B2 (Drums/Percussion)
+    "B": range(48, 60),  # C3-B3 (Bass)
+    "C": range(60, 72),  # C4-B4 (Melodic/Synth)
+    "D": range(72, 84),  # C5-B5 (User samples)
 }
 
 # Default velocity values for pattern notation
 VELOCITY_HIGH = 100  # for 'x' or 'X' in patterns
 VELOCITY_LOW = 60    # for 'o' or 'O' in patterns
 VELOCITY_DEFAULT = 80  # default value when not specified
+
+# Common instrument names mapped directly to MIDI notes.
+# These correspond to the default EP-133 K.O. II pad assignments on Channel A.
+# This avoids the fragile chain of sound library search → pad config → pad-to-note.
+COMMON_INSTRUMENTS = {
+    # Channel A - Drums & Percussion
+    "kick": 36,           # A. - MICRO KICK
+    "kick2": 37,          # A0 - NT ALT KICK
+    "bass drum": 36,      # A. alias
+    "bd": 36,             # A. alias
+    "snare": 40,          # A2 - NT SNARE ALT
+    "snare2": 41,         # A3 - NT SNARE ALT B (shared with rimshot position)
+    "sd": 40,             # A2 alias
+    "rimshot": 42,        # A4 - NT RIMSHOT (via DEFAULT_PAD_CONFIG)
+    "rim": 42,            # A4 alias
+    "clap": 41,           # A3 - NT CLAP (via DEFAULT_PAD_CONFIG)
+    "cp": 41,             # A3 alias
+    "hi-hat": 43,         # A5 - NT HH CLOSED
+    "hihat": 43,          # A5 alias
+    "hh": 43,             # A5 alias
+    "closed hat": 43,     # A5 alias
+    "closed hi-hat": 43,  # A5 alias
+    "open hat": 46,       # A8 - NT HH OPEN
+    "open hi-hat": 46,    # A8 alias
+    "oh": 46,             # A8 alias
+    "ride": 44,           # A6 - NT RIDE
+    "ride cymbal": 44,    # A6 alias
+    "crash": 47,          # A9 - NT RIDE C / crash position
+    "cymbal": 47,         # A9 alias
+    "tom": 42,            # A4 - general tom
+    "low tom": 42,        # A4
+    "mid tom": 44,        # A6
+    "high tom": 45,       # A7
+    "tambourine": 43,     # A5 area (default has NT TAMBO on A4)
+    "tambo": 43,          # alias
+    "perc": 45,           # A7 - NT PERC
+    "percussion": 45,     # A7 alias
+    "shaker": 45,         # A7 area
+    "cowbell": 45,        # A7 area
+    "clave": 45,          # A7 area
+    "conga": 45,          # A7 area
+    "bongo": 45,          # A7 area
+
+    # Channel B - Bass
+    "bass": 48,           # B. - NT BASS
+    "sub": 48,            # B. alias
+    "bass2": 49,          # B0
+
+    # Channel C - Melodic & Synth
+    "melodic": 60,        # C. - BLUE
+    "synth": 60,          # C. alias
+    "piano": 61,          # C0 area
+    "keys": 60,           # C. alias
+    "chord": 60,          # C. alias
+    "strings": 60,        # C. alias
+    "organ": 60,          # C. alias
+}
 
 # Sound library categories from sounds.md
 SOUND_CATEGORIES = [
@@ -125,30 +194,36 @@ SOUND_LIBRARY = {
     }
 }
 
-# Default pad configuration mapping from the sounds.md file
+# Default pad configuration mapping.
+# Layout per channel is a 4x3 grid, ordered bottom-to-top:
+#   Row 0: [pad_dot, pad_0, pad_FX]  (bottom special row)
+#   Row 1: [pad_1,   pad_2, pad_3]   (bottom numbered row)
+#   Row 2: [pad_4,   pad_5, pad_6]   (middle numbered row)
+#   Row 3: [pad_7,   pad_8, pad_9]   (top numbered row)
+# Values are sound IDs from SOUND_LIBRARY.
 DEFAULT_PAD_CONFIG = {
-    "A": {  # Channel A
+    "A": {  # Channel A - Drums & Percussion
         "pads": [
-            [343, 235, 247],
-            [317, 200, 218],
-            [100, 114, 130],
-            [1, 21, 300]
+            [1, 21, 300],       # A., A0, AFX: MICRO KICK, NT ALT KICK, NT CLAP
+            [100, 114, 130],    # A1, A2, A3: NT SNARE, NT SNARE ALT, NT RIMSHOT
+            [317, 200, 218],    # A4, A5, A6: NT TAMBO, NT HH CLOSED, NT HH OPEN
+            [343, 235, 247],    # A7, A8, A9: NT PERC, NT RIDE, NT RIDE C
         ]
     },
-    "B": {  # Channel B
+    "B": {  # Channel B - Bass
         "pads": [
-            [445, 450, 455],
-            [430, 435, 440],
-            [415, 420, 425],
-            [400, 405, 410]
+            [400, 405, 410],    # B., B0, BFX: NT BASS, MP3K SUB, CAT ENVELOPE
+            [415, 420, 425],    # B1, B2, B3: PRODIGY SUB, OB SUB, SYNTH 4TH HIT
+            [430, 402, 404],    # B4, B5, B6: P.SIX SIMPLE, TUBRO BASS, BASIC
+            [407, 408, 401],    # B7, B8, B9: UPRIGHT SUB, E BASS PICK, S95X ROUND
         ]
     },
-    "C": {  # Channel C
+    "C": {  # Channel C - Melodic & Synth
         "pads": [
-            [545, 550, 555],
-            [530, 353, 540],
-            [515, 520, 525],
-            [500, 505, 510]
+            [500, 505, 510],    # C., C0, CFX: BLUE, ULTRA, SKYLINE STRING
+            [515, 520, 525],    # C1, C2, C3: EPIANO 360, EPIANO 360 BASS, SYNTH MICRO FUNK
+            [530, 343, 540],    # C4, C5, C6: CELLO 360, NT PERC, SKY LEAD
+            [545, 550, 555],    # C7, C8, C9: PLING CHORD, LOOK ORGAN, NT CHORDY
         ]
     }
 }
@@ -178,12 +253,16 @@ SCALE_PATTERNS = {
 
 class MIDIInterface:
     """Interface for communicating with the EP-133 K.O. II via MIDI."""
-    
+
     def __init__(self):
         """Initialize the MIDI interface."""
         self.port: Optional[BaseOutput] = None
         self.channel: int = 0  # MIDI channels are 0-indexed in mido
         self.connected: bool = False
+        # Pattern storage: name → {pattern_text, bpm, instruments, events}
+        self._patterns: Dict[str, Dict[str, Any]] = {}
+        # Song storage: name → {patterns: [(pattern_name, repeats)], bpm}
+        self._songs: Dict[str, Dict[str, Any]] = {}
     
     def list_ports(self) -> List[str]:
         """List all available MIDI output ports."""
@@ -627,68 +706,74 @@ class MIDIInterface:
     
     def interpret_trigger_reference(self, reference: str) -> int:
         """
-        Interpret a reference that could be a pad label, MIDI note, or sound name.
-        
+        Interpret a reference that could be a common instrument name, pad label,
+        MIDI note, or sound name.
+
+        Resolution order:
+        1. Common instrument names (kick, snare, hi-hat, etc.) → direct MIDI note
+        2. Direct MIDI note number (0-127)
+        3. Pad reference (A., A0, A1-A9, B., etc.)
+        4. Sound library name search → default pad config lookup
+
         Args:
-            reference: The reference string (e.g., "A0", "36", "KICK", etc.)
-            
+            reference: The reference string (e.g., "kick", "A0", "36", "MICRO KICK")
+
         Returns:
             int: MIDI note number
-            
+
         Raises:
             ValueError: If the reference can't be interpreted
         """
-        # Log the reference we're trying to interpret
         logger.info(f"Interpreting trigger reference: '{reference}'")
-        
-        # Case 1: Check if it's a direct MIDI note number
-        if reference.isdigit():
-            note_num = int(reference)
+        ref_stripped = reference.strip().strip('"').strip("'")
+
+        # Case 1: Common instrument name (most frequent use case)
+        ref_lower = ref_stripped.lower()
+        if ref_lower in COMMON_INSTRUMENTS:
+            note = COMMON_INSTRUMENTS[ref_lower]
+            logger.info(f"Interpreted as common instrument: {ref_stripped} → MIDI note {note}")
+            return note
+
+        # Case 2: Direct MIDI note number
+        if ref_stripped.isdigit():
+            note_num = int(ref_stripped)
             if 0 <= note_num <= 127:
                 logger.info(f"Interpreted as MIDI note number: {note_num}")
                 return note_num
             raise ValueError(f"MIDI note {note_num} is out of range (0-127)")
-        
-        # Case 2: Check if it's a pad reference (A0, B3, etc.)
-        if (len(reference) >= 2 and reference[0].upper() in PAD_GROUPS and 
-            (reference[1:].isdigit() or reference[1:] == '.' or reference[1:].upper() == 'FX')):
+
+        # Case 3: Pad reference (A0, B3, C., DFX, etc.)
+        if (len(ref_stripped) >= 2 and ref_stripped[0].upper() in PAD_GROUPS and
+            (ref_stripped[1:].isdigit() or ref_stripped[1:] == '.' or ref_stripped[1:].upper() == 'FX')):
             try:
-                note = self.pad_to_note(reference)
-                logger.info(f"Interpreted as pad reference: {reference} → MIDI note {note}")
+                note = self.pad_to_note(ref_stripped)
+                logger.info(f"Interpreted as pad reference: {ref_stripped} → MIDI note {note}")
                 return note
             except ValueError:
-                # Continue to other methods if this fails
                 pass
-        
-        # Case 3: Try to match with a sound name from the library
-        sound_id = self.find_sound_by_name(reference)
+
+        # Case 4: Sound library name search → pad config lookup
+        sound_id = self.find_sound_by_name(ref_stripped)
         if sound_id is not None:
-            logger.info(f"Found matching sound in library: {reference} → Sound ID {sound_id}")
-            
-            # Find which pad it's mapped to by default
+            logger.info(f"Found matching sound in library: {ref_stripped} → Sound ID {sound_id}")
             for channel, config in DEFAULT_PAD_CONFIG.items():
                 for row_idx, row in enumerate(config["pads"]):
                     if sound_id in row:
                         col_idx = row.index(sound_id)
-                        
-                        # Map sound to physical pad
                         if row_idx == 0:  # Bottom special row
                             if col_idx == 0:
-                                pad_reference = f"{channel}."  # bottom left
+                                pad_ref = f"{channel}."
                             elif col_idx == 1:
-                                pad_reference = f"{channel}0"  # bottom middle
+                                pad_ref = f"{channel}0"
                             else:
-                                raise ValueError(f"Sound {reference} is mapped to FX pad which is not directly addressable.")
+                                pad_ref = f"{channel}FX"
                         else:
-                            # Calculate the pad number (1-9) from row and column
                             pad_num = ((row_idx - 1) * 3) + col_idx + 1
-                            pad_reference = f"{channel}{pad_num}"
-                        
-                        # Convert pad reference to MIDI note
-                        note = self.pad_to_note(pad_reference)
-                        logger.info(f"Sound is mapped to pad {pad_reference} → MIDI note {note}")
+                            pad_ref = f"{channel}{pad_num}"
+                        note = self.pad_to_note(pad_ref)
+                        logger.info(f"Sound mapped to pad {pad_ref} → MIDI note {note}")
                         return note
-        
+
         # Last resort - default to kick drum
         logger.warning(f"Could not interpret reference: {reference} - defaulting to A. (kick drum)")
         return self.pad_to_note("A.")
@@ -711,165 +796,183 @@ class MIDIInterface:
         # Otherwise, take the first word
         return comment.split()[0]
     
-    def parse_drum_pattern(self, pattern: str, bpm: int = 120) -> bool:
+    def _parse_pattern_line(self, line: str) -> List[Optional[int]]:
+        """
+        Pre-parse a single pattern line into a list of velocity values.
+
+        Each element in the returned list represents one 16th note step.
+        None means a rest (no hit), an int is the velocity (1-127).
+
+        Supported notation:
+        - 'x' or 'X': High velocity hit (100)
+        - 'o' or 'O': Low velocity hit (60)
+        - '.': Rest (no hit)
+        - '-': Rest (alternative notation)
+        - '1'-'9': Velocity level (1=14, 2=28, ..., 9=126)
+        - 'v' + 1-3 digits: Exact velocity (e.g., v64, v127, v30)
+        - ' ': Ignored (allows visual grouping like 'x... x... x... x...')
+
+        The key fix: 'v64' is treated as a single step (one hit at velocity 64),
+        not three separate steps. The digits after 'v' are consumed as part of
+        the velocity value, not as separate step characters.
+
+        Args:
+            line: A pattern line string (without the # comment part)
+
+        Returns:
+            List of velocity values (int) or None for rests.
+        """
+        events: List[Optional[int]] = []
+        i = 0
+        while i < len(line):
+            char = line[i]
+            if char == '.' or char == '-':
+                events.append(None)
+                i += 1
+            elif char in ('x', 'X'):
+                events.append(VELOCITY_HIGH)
+                i += 1
+            elif char in ('o', 'O'):
+                events.append(VELOCITY_LOW)
+                i += 1
+            elif char.isdigit() and '1' <= char <= '9':
+                events.append(int(char) * 14)
+                i += 1
+            elif char == 'v':
+                # Parse velocity value: consume 'v' + up to 3 digits as ONE step
+                i += 1
+                vel_str = ''
+                while i < len(line) and line[i].isdigit() and len(vel_str) < 3:
+                    vel_str += line[i]
+                    i += 1
+                if vel_str:
+                    events.append(min(127, max(1, int(vel_str))))
+                else:
+                    events.append(VELOCITY_DEFAULT)
+            elif char == ' ':
+                # Skip spaces - allow visual grouping in patterns
+                i += 1
+            elif char == '0':
+                # '0' = rest (mnemonic: zero velocity = silence)
+                events.append(None)
+                i += 1
+            else:
+                # Unknown character = rest
+                events.append(None)
+                i += 1
+        return events
+
+    def parse_drum_pattern(self, pattern: str, bpm: int = 120, repeat: int = 1) -> bool:
         """
         Parse and play a text-based drum pattern.
-        
+
         Format:
-        x...x...x...x...  # kick (or A. or 36 or KICK)
-        ....x.......x...  # snare (or A2 or 40 or SNARE)
-        x.x.x.x.x.x.x.x.  # hi-hat (or A5 or 43 or HI-HAT)
-        
-        The pattern can reference sounds in four ways:
-        1. Pad labels (A0, B3, C7, etc.)
-        2. MIDI note numbers (36, 42, 51, etc.)
-        3. Instrument names (kick, snare, hi-hat, etc.)
-        4. Sound names ("MICRO KICK", "NT SNARE", etc.)
-        
+        x...x...x...x...  # kick
+        ....x.......x...  # snare
+        x.x.x.x.x.x.x.x  # hi-hat
+
+        The pattern can reference sounds in four ways (checked in order):
+        1. Common instrument names (kick, snare, hi-hat, bass, etc.)
+        2. MIDI note numbers (36, 40, 43, etc.)
+        3. Pad labels (A., A0, A1-A9, B., etc.)
+        4. Sound library names ("MICRO KICK", "NT SNARE", etc.)
+
+        Notation per step:
+        - 'x'/'X': Hit at velocity 100
+        - 'o'/'O': Soft hit at velocity 60
+        - '1'-'9': Hit at scaled velocity (1=14 to 9=126)
+        - 'v' + digits: Hit at exact velocity (e.g., v64, v127)
+        - '.'/'-'/'0': Rest (no hit)
+        - ' ': Ignored (visual grouping)
+
         Args:
             pattern: Text-based drum pattern
-            bpm: Tempo in beats per minute
-            
+            bpm: Tempo in beats per minute (default 120)
+            repeat: Number of times to repeat the pattern (default 1)
+
         Returns:
             bool: True if successful, False otherwise
         """
         if not self._ensure_connected():
             return False
-        
+
         try:
-            # Parse the pattern
             lines = [line.strip() for line in pattern.split('\n') if line.strip()]
-            
-            pattern_lines = []
-            instrument_mapping = {}
-            instrument_names = {}
-            unrecognized_instruments = []
-            
-            # Process each line to extract pattern and instrument info
+
+            # Parse each line into events and instrument mapping
+            parsed_tracks: List[Tuple[List[Optional[int]], int, str]] = []
+            unrecognized_instruments: List[str] = []
+
             for line in lines:
                 if '#' in line:
                     pattern_part, comment = line.split('#', 1)
                     pattern_part = pattern_part.strip()
                     comment = comment.strip()
-                    
-                    # Store the original comment for reporting
-                    original_comment = comment
-                    
-                    # Extract the main reference from the comment
+
                     reference = self._extract_instrument_reference(comment)
-                    
-                    # Try to interpret the reference
                     try:
                         note = self.interpret_trigger_reference(reference)
                         logger.info(f"Mapped '{reference}' to MIDI note {note}")
-                        
-                        # Add to the pattern lines and instrument mapping
-                        line_index = len(pattern_lines)
-                        pattern_lines.append(pattern_part)
-                        instrument_mapping[line_index] = note
-                        instrument_names[line_index] = original_comment
+                        events = self._parse_pattern_line(pattern_part)
+                        parsed_tracks.append((events, note, comment))
                     except ValueError as e:
-                        logger.warning(f"Could not interpret reference '{reference}': {str(e)}.")
-                        unrecognized_instruments.append(original_comment)
-                elif any(c in 'xXoO' for c in line):
-                    # Add lines with pattern content but no comment
-                    line_index = len(pattern_lines)
-                    pattern_lines.append(line)
-                    instrument_mapping[line_index] = self.pad_to_note("A.")  # Default to kick
-                    instrument_names[line_index] = "kick (default)"
-            
-            # Check if we have any patterns to play
-            if not pattern_lines:
+                        logger.warning(f"Could not interpret reference '{reference}': {e}")
+                        unrecognized_instruments.append(comment)
+                elif any(c in 'xXoO123456789' for c in line):
+                    events = self._parse_pattern_line(line)
+                    parsed_tracks.append((events, self.pad_to_note("A."), "kick (default)"))
+
+            if not parsed_tracks:
                 if unrecognized_instruments:
-                    logger.error(f"No valid pattern lines found. Unrecognized instruments: {', '.join(unrecognized_instruments)}")
+                    logger.error(f"No valid pattern lines found. Unrecognized: {', '.join(unrecognized_instruments)}")
                 else:
                     logger.error("No valid pattern lines found")
                 return False
-            
-            # Determine pattern length and time per step
-            pattern_length = max(len(line) for line in pattern_lines)
-            step_duration = 60.0 / bpm / 4  # Assuming 16th notes
-            
-            # Log the pattern we're about to play
-            logger.info(f"Playing pattern at {bpm} BPM with {len(pattern_lines)} instruments")
-            for i, line in enumerate(pattern_lines):
-                note = instrument_mapping.get(i, 36)
-                instrument = instrument_names.get(i, "unknown")
-                logger.info(f"Line {i+1}: {line} - {instrument} (MIDI note: {note})")
-            
+
+            # Determine step count from the longest track
+            step_count = max(len(events) for events, _, _ in parsed_tracks)
+            step_duration = 60.0 / bpm / 4  # 16th note duration
+
+            logger.info(f"Playing pattern at {bpm} BPM, {step_count} steps, {len(parsed_tracks)} instruments, {repeat}x repeat")
+            for events, note, name in parsed_tracks:
+                logger.info(f"  Track: {name} (MIDI note: {note}, {len(events)} steps)")
+
             if unrecognized_instruments:
                 logger.warning(f"Ignored unrecognized instruments: {', '.join(unrecognized_instruments)}")
-            
-            # Play the pattern
-            for step in range(pattern_length):
-                notes_to_play = []
-                
-                # Collect all notes that should play on this step
-                for i, line in enumerate(pattern_lines):
-                    if step < len(line):
-                        char = line[step]
-                        # Check if we need to play a note on this step
-                        if char in ['x', 'X', 'o', 'O']:
-                            # Basic velocity from character type
-                            velocity = VELOCITY_HIGH if char in ['x', 'X'] else VELOCITY_LOW
-                            note = instrument_mapping.get(i, 36)  # Default to kick
-                            notes_to_play.append((note, velocity))
-                        # New feature: Numeric velocity values (1-9)
-                        elif char.isdigit() and '1' <= char <= '9':
-                            # Map 1-9 to velocities from ~14-127 (1=14, 9=127)
-                            velocity = int(char) * 14
-                            note = instrument_mapping.get(i, 36)
-                            notes_to_play.append((note, velocity))
-                        # Support for exact velocity values with format v[0-127]
-                        elif char == 'v' and step + 1 < len(line):
-                            # Try to parse a velocity value like v064, v127, etc.
-                            velocity_str = ''
-                            j = step + 1
-                            # Find the end of the velocity value
-                            while j < len(line) and line[j].isdigit() and len(velocity_str) < 3:
-                                velocity_str += line[j]
-                                j += 1
-                            
-                            # If we found a valid velocity string (1-3 digits)
-                            if velocity_str:
-                                try:
-                                    velocity = min(127, max(1, int(velocity_str)))
-                                    note = instrument_mapping.get(i, 36)
-                                    notes_to_play.append((note, velocity))
-                                except ValueError:
-                                    logger.warning(f"Invalid velocity value: v{velocity_str}")
-                                    # Use default velocity for invalid values
-                                    velocity = VELOCITY_DEFAULT
-                                    note = instrument_mapping.get(i, 36)
-                                    notes_to_play.append((note, velocity))
-                            else:
-                                # Just treat 'v' as a placeholder without velocity info
-                                velocity = VELOCITY_DEFAULT
-                                note = instrument_mapping.get(i, 36)
-                                notes_to_play.append((note, velocity))
-                
-                # Play all notes for this step simultaneously
-                for note, velocity in notes_to_play:
-                    self.port.send(mido.Message('note_on', note=note, velocity=velocity, channel=self.channel))
-                
-                # Wait for the step duration
-                time.sleep(step_duration)
-                
-                # Turn off all notes
-                for note, _ in notes_to_play:
-                    self.port.send(mido.Message('note_off', note=note, velocity=0, channel=self.channel))
-            
-            # Log summary
-            played_instruments = len(pattern_lines)
-            ignored_instruments = len(unrecognized_instruments)
-            
-            status_msg = f"Played drum pattern at {bpm} BPM with {played_instruments} instruments"
-            if ignored_instruments > 0:
-                status_msg += f" (ignored {ignored_instruments} unrecognized instruments)"
-            
-            logger.info(status_msg)
+
+            # Play the pattern (with repeats)
+            for rep in range(repeat):
+                for step in range(step_count):
+                    notes_to_play: List[Tuple[int, int]] = []
+
+                    for events, note, _ in parsed_tracks:
+                        if step < len(events) and events[step] is not None:
+                            notes_to_play.append((note, events[step]))
+
+                    # Send all note-on messages for this step
+                    for note, velocity in notes_to_play:
+                        self.port.send(mido.Message(
+                            'note_on', note=note, velocity=velocity, channel=self.channel
+                        ))
+
+                    time.sleep(step_duration)
+
+                    # Send all note-off messages
+                    for note, _ in notes_to_play:
+                        self.port.send(mido.Message(
+                            'note_off', note=note, velocity=0, channel=self.channel
+                        ))
+
+            played = len(parsed_tracks)
+            ignored = len(unrecognized_instruments)
+            status = f"Played drum pattern at {bpm} BPM with {played} instruments"
+            if repeat > 1:
+                status += f" ({repeat} repeats)"
+            if ignored > 0:
+                status += f" (ignored {ignored} unrecognized instruments)"
+            logger.info(status)
             return True
-            
+
         except Exception as e:
             logger.error(f"Error playing drum pattern: {e}")
             return False
@@ -1025,5 +1128,353 @@ class MIDIInterface:
         for i, pad in enumerate(pad_layout):
             if i < len(scale_notes):
                 pad_to_note[pad] = scale_notes[i]
-        
+
         return pad_to_note
+
+    def play_scale_sequence(
+        self,
+        channel: str,
+        scale_name: str,
+        root_note: str,
+        sequence: List[int],
+        velocity: int = 100,
+        duration: float = 0.2,
+        interval: float = 0.1,
+        octave: int = 3
+    ) -> bool:
+        """
+        Play a sequence of notes from a musical scale.
+
+        Args:
+            channel: Pad channel ('A', 'B', 'C', or 'D')
+            scale_name: Name of the scale (e.g., 'major', 'minor', 'blues')
+            root_note: Root note of the scale (e.g., 'C', 'F#', 'Eb')
+            sequence: List of scale degrees (1-based). 0 = rest. Negative = lower octave.
+            velocity: Note velocity (0-127)
+            duration: Note duration in seconds
+            interval: Time between notes in seconds
+            octave: Starting octave for the scale (0-10)
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if not self._ensure_connected():
+            return False
+
+        try:
+            scale_notes = self.get_scale_notes(scale_name, root_note, octave)
+            if not scale_notes:
+                logger.error("No scale notes generated")
+                return False
+
+            velocity = max(0, min(127, velocity))
+
+            for i, degree in enumerate(sequence):
+                if degree == 0:
+                    # Rest
+                    time.sleep(duration + interval)
+                    continue
+
+                # Handle negative degrees (lower octave)
+                if degree < 0:
+                    idx = abs(degree) - 1
+                    if idx < len(scale_notes):
+                        note = scale_notes[idx] - 12
+                    else:
+                        note = scale_notes[0] - 12
+                else:
+                    idx = degree - 1
+                    if idx < len(scale_notes):
+                        note = scale_notes[idx]
+                    else:
+                        # Wrap around within available notes
+                        note = scale_notes[idx % len(scale_notes)]
+
+                # Clamp to valid MIDI range
+                note = max(0, min(127, note))
+
+                # Play the note
+                self.port.send(mido.Message(
+                    'note_on', note=note, velocity=velocity, channel=self.channel
+                ))
+                time.sleep(duration)
+                self.port.send(mido.Message(
+                    'note_off', note=note, velocity=0, channel=self.channel
+                ))
+
+                # Wait between notes (except after the last note)
+                if i < len(sequence) - 1:
+                    time.sleep(interval)
+
+            logger.info(
+                f"Played scale sequence: {scale_name} in {root_note} "
+                f"(channel {channel}, octave {octave}, {len(sequence)} notes)"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"Error playing scale sequence: {e}")
+            return False
+
+    # ----------------------------------------------------------------
+    # Pattern Storage & Management
+    # ----------------------------------------------------------------
+
+    def store_pattern(self, name: str, pattern: str, bpm: int = 120) -> Dict[str, Any]:
+        """
+        Store a named pattern for later recall and use in songs.
+
+        Args:
+            name: Unique name for the pattern (e.g., "verse_drums", "chorus_bass")
+            pattern: Text-based drum pattern string
+            bpm: Default BPM for this pattern
+
+        Returns:
+            Dict with pattern info including name, instrument count, step count.
+        """
+        lines = [line.strip() for line in pattern.split('\n') if line.strip()]
+        tracks = []
+        for line in lines:
+            if '#' in line:
+                pattern_part, comment = line.split('#', 1)
+                pattern_part = pattern_part.strip()
+                comment = comment.strip()
+                reference = self._extract_instrument_reference(comment)
+                try:
+                    note = self.interpret_trigger_reference(reference)
+                    events = self._parse_pattern_line(pattern_part)
+                    tracks.append({
+                        "events": events,
+                        "note": note,
+                        "name": comment,
+                        "pattern_text": pattern_part,
+                    })
+                except ValueError:
+                    logger.warning(f"Skipping unrecognized instrument in stored pattern: {comment}")
+
+        step_count = max((len(t["events"]) for t in tracks), default=0)
+
+        self._patterns[name] = {
+            "pattern_text": pattern,
+            "bpm": bpm,
+            "tracks": tracks,
+            "step_count": step_count,
+        }
+
+        logger.info(f"Stored pattern '{name}': {len(tracks)} tracks, {step_count} steps, {bpm} BPM")
+        return {
+            "name": name,
+            "instruments": len(tracks),
+            "steps": step_count,
+            "bpm": bpm,
+            "track_names": [t["name"] for t in tracks],
+        }
+
+    def get_pattern(self, name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a stored pattern by name.
+
+        Args:
+            name: Pattern name
+
+        Returns:
+            Pattern dict if found, None otherwise.
+        """
+        return self._patterns.get(name)
+
+    def list_patterns(self) -> List[Dict[str, Any]]:
+        """
+        List all stored patterns.
+
+        Returns:
+            List of pattern summaries.
+        """
+        result = []
+        for name, pat in self._patterns.items():
+            result.append({
+                "name": name,
+                "instruments": len(pat["tracks"]),
+                "steps": pat["step_count"],
+                "bpm": pat["bpm"],
+                "track_names": [t["name"] for t in pat["tracks"]],
+            })
+        return result
+
+    def delete_pattern(self, name: str) -> bool:
+        """
+        Delete a stored pattern.
+
+        Args:
+            name: Pattern name to delete
+
+        Returns:
+            True if deleted, False if not found.
+        """
+        if name in self._patterns:
+            del self._patterns[name]
+            logger.info(f"Deleted pattern '{name}'")
+            return True
+        return False
+
+    def play_stored_pattern(self, name: str, bpm: Optional[int] = None, repeat: int = 1) -> bool:
+        """
+        Play a previously stored pattern.
+
+        Args:
+            name: Pattern name
+            bpm: Override BPM (uses stored BPM if None)
+            repeat: Number of times to repeat
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        pattern_data = self._patterns.get(name)
+        if not pattern_data:
+            logger.error(f"Pattern '{name}' not found")
+            return False
+
+        actual_bpm = bpm if bpm is not None else pattern_data["bpm"]
+        return self.parse_drum_pattern(pattern_data["pattern_text"], actual_bpm, repeat)
+
+    # ----------------------------------------------------------------
+    # Song Arrangement
+    # ----------------------------------------------------------------
+
+    def create_song(self, name: str, arrangement: List[Dict[str, Any]], bpm: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Create a song by arranging stored patterns in sequence.
+
+        Args:
+            name: Song name
+            arrangement: List of dicts, each with:
+                - "pattern": name of a stored pattern (required)
+                - "repeat": number of times to play this pattern (default 1)
+                - "bpm": override BPM for this section (optional)
+            bpm: Default BPM for the whole song (overrides individual pattern BPMs)
+
+        Returns:
+            Dict with song info.
+        """
+        # Validate all referenced patterns exist
+        for i, section in enumerate(arrangement):
+            pat_name = section.get("pattern")
+            if not pat_name or pat_name not in self._patterns:
+                raise ValueError(
+                    f"Section {i}: pattern '{pat_name}' not found. "
+                    f"Available: {list(self._patterns.keys())}"
+                )
+
+        self._songs[name] = {
+            "arrangement": arrangement,
+            "bpm": bpm,
+        }
+
+        total_sections = len(arrangement)
+        total_repeats = sum(s.get("repeat", 1) for s in arrangement)
+
+        logger.info(f"Created song '{name}': {total_sections} sections, {total_repeats} total plays")
+        return {
+            "name": name,
+            "sections": total_sections,
+            "total_pattern_plays": total_repeats,
+            "arrangement": [
+                {
+                    "pattern": s["pattern"],
+                    "repeat": s.get("repeat", 1),
+                    "bpm": s.get("bpm"),
+                }
+                for s in arrangement
+            ],
+        }
+
+    def list_songs(self) -> List[Dict[str, Any]]:
+        """
+        List all stored songs.
+
+        Returns:
+            List of song summaries.
+        """
+        result = []
+        for name, song in self._songs.items():
+            result.append({
+                "name": name,
+                "sections": len(song["arrangement"]),
+                "total_pattern_plays": sum(
+                    s.get("repeat", 1) for s in song["arrangement"]
+                ),
+            })
+        return result
+
+    def get_song(self, name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a stored song by name.
+
+        Args:
+            name: Song name
+
+        Returns:
+            Song dict if found, None otherwise.
+        """
+        return self._songs.get(name)
+
+    def delete_song(self, name: str) -> bool:
+        """
+        Delete a stored song.
+
+        Args:
+            name: Song name to delete
+
+        Returns:
+            True if deleted, False if not found.
+        """
+        if name in self._songs:
+            del self._songs[name]
+            logger.info(f"Deleted song '{name}'")
+            return True
+        return False
+
+    def play_song(self, name: str, bpm_override: Optional[int] = None) -> bool:
+        """
+        Play a stored song (sequence of patterns).
+
+        Args:
+            name: Song name
+            bpm_override: Override BPM for all sections
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        song = self._songs.get(name)
+        if not song:
+            logger.error(f"Song '{name}' not found")
+            return False
+
+        if not self._ensure_connected():
+            return False
+
+        logger.info(f"Playing song '{name}' ({len(song['arrangement'])} sections)")
+
+        for i, section in enumerate(song["arrangement"]):
+            pat_name = section["pattern"]
+            repeat = section.get("repeat", 1)
+
+            # BPM priority: bpm_override > section bpm > song bpm > pattern bpm
+            if bpm_override is not None:
+                section_bpm = bpm_override
+            elif section.get("bpm") is not None:
+                section_bpm = section["bpm"]
+            elif song.get("bpm") is not None:
+                section_bpm = song["bpm"]
+            else:
+                pattern_data = self._patterns.get(pat_name, {})
+                section_bpm = pattern_data.get("bpm", 120)
+
+            logger.info(f"  Section {i+1}: '{pat_name}' x{repeat} at {section_bpm} BPM")
+
+            success = self.play_stored_pattern(pat_name, section_bpm, repeat)
+            if not success:
+                logger.error(f"Failed to play section {i+1} ('{pat_name}')")
+                return False
+
+        logger.info(f"Finished playing song '{name}'")
+        return True
