@@ -14,7 +14,10 @@ from typing import AsyncIterator, Dict, List, Optional, Union
 
 from mcp.server.fastmcp import FastMCP
 
-from koii.midi_interface import MIDIInterface, SOUND_LIBRARY, SOUND_CATEGORIES, DEFAULT_PAD_CONFIG, PAD_GROUPS
+from koii.midi_interface import (
+    MIDIInterface, SOUND_LIBRARY, SOUND_CATEGORIES, DEFAULT_PAD_CONFIG,
+    PAD_GROUPS, COMMON_INSTRUMENTS,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -237,85 +240,89 @@ def play_pattern(
         return f"Error: {str(e)}"
 
 @server.tool()
-def play_drum_pattern(pattern: str, bpm: int = 120) -> str:
+def play_drum_pattern(pattern: str, bpm: int = 120, repeat: int = 1) -> str:
     """
     Play a text-based drum pattern on the EP-133 K.O. II.
-    
-    Format:
-    x...x...x...x...  # kick      (bottom left pad, A.)
-    ....x.......x...  # snare     (pad A2)
-    x.x.x.x.x.x.x.x.  # hi-hat    (pad A5)
-    
-    The pattern supports four reference types:
-    1. Pad references: A., A0, A1-A9, B., B1, etc.
+
+    Format (each line = one instrument, each character = one 16th note step):
+    x...x...x...x...  # kick
+    ....x.......x...  # snare
+    x.x.x.x.x.x.x.x  # hi-hat
+
+    Step notation:
+    - 'x'/'X': Hit at velocity 100
+    - 'o'/'O': Soft hit at velocity 60
+    - '1'-'9': Hit at scaled velocity (1=14 gentle to 9=126 hard)
+    - 'v' + digits: Hit at exact velocity (e.g., v64, v127) - counts as ONE step
+    - '.'/'-': Rest (no hit)
+    - ' ': Ignored (visual grouping, e.g., 'x... x... x... x...')
+
+    Instrument references (after #):
+    1. Common names: kick, snare, hi-hat, clap, ride, crash, bass, etc.
     2. MIDI note numbers: 36, 40, 43, etc.
-    3. Instrument names: kick, snare, hi-hat, etc.
-    4. Sound names from library: "MICRO KICK", "NT SNARE", etc.
-    
-    Default drum mappings:
-    - kick → A. (MIDI note 36)
-    - snare → A2 (MIDI note 40)
-    - clap → A3 (MIDI note 41)
-    - hi-hat → A5 (MIDI note 43)
-    - open hi-hat → A8 (MIDI note 46)
-    
+    3. Pad labels: A., A0, A1-A9, B., B1, etc.
+    4. Sound library names: "MICRO KICK", "NT SNARE", etc.
+
+    Default drum mappings (Channel A):
+    - kick → A. (36)    - snare → A2 (40)   - clap → A3 (41)
+    - hi-hat → A5 (43)  - open hat → A8 (46) - ride → A6 (44)
+    - crash → A9 (47)   - perc → A7 (45)
+
     Args:
         pattern: Text-based drum pattern
-        bpm: Tempo in beats per minute
-    
+        bpm: Tempo in beats per minute (default 120)
+        repeat: Number of times to repeat the pattern (default 1)
+
     Returns:
         A status message indicating success or failure.
     """
     if not midi.connected:
         return "No MIDI device connected"
-    
-    # Capture logs from the MIDIInterface to extract information about
-    # recognized and unrecognized instruments
+
     from koii.midi_interface import logger as midi_logger
-    
+
     with capture_logs(midi_logger) as log_capture:
         try:
-            success = midi.parse_drum_pattern(pattern, bpm)
-            
-            # Extract information from logs
+            success = midi.parse_drum_pattern(pattern, bpm, repeat)
+
             log_output = log_capture.getvalue()
-            
-            # Find recognized instruments
+
             recognized_instruments = []
             unrecognized_instruments = []
-            
+
             for line in log_output.split('\n'):
-                # Look for mapped instruments
                 mapped_match = re.search(r"Mapped '([^']+)' to MIDI note (\d+)", line)
                 if mapped_match:
-                    reference = mapped_match.group(1)
-                    note = mapped_match.group(2)
-                    recognized_instruments.append(f"{reference} → MIDI note {note}")
-                
-                # Look for unrecognized instruments
+                    recognized_instruments.append(
+                        f"{mapped_match.group(1)} → MIDI note {mapped_match.group(2)}"
+                    )
+
                 unrecognized_match = re.search(r"Ignored unrecognized instruments: (.+)", line)
                 if unrecognized_match:
-                    unrecognized = unrecognized_match.group(1).split(', ')
-                    unrecognized_instruments.extend(unrecognized)
-            
-            # Build response message
+                    unrecognized_instruments.extend(
+                        unrecognized_match.group(1).split(', ')
+                    )
+
             if success:
-                response = f"Successfully played drum pattern at {bpm} BPM\n"
-                
+                response = f"Successfully played drum pattern at {bpm} BPM"
+                if repeat > 1:
+                    response += f" ({repeat} repeats)"
+                response += "\n"
+
                 if recognized_instruments:
                     response += "\nRecognized instruments:\n"
                     for instr in recognized_instruments:
                         response += f"- {instr}\n"
-                
+
                 if unrecognized_instruments:
                     response += "\nUnrecognized instruments (ignored):\n"
                     for instr in unrecognized_instruments:
                         response += f"- {instr}\n"
-                
+
                 return response.strip()
             else:
                 return "Failed to play drum pattern"
-        
+
         except Exception as e:
             return f"Error: {str(e)}"
 
@@ -580,46 +587,326 @@ def play_scale_sequence(
     except ValueError as e:
         return f"Error: {str(e)}"
 
+# ----------------------------------------------------------------
+# Pattern Management Tools
+# ----------------------------------------------------------------
+
+@server.tool()
+def store_pattern(name: str, pattern: str, bpm: int = 120) -> str:
+    """
+    Store a named drum pattern for later recall or use in songs.
+
+    This is essential for building songs collaboratively: create patterns
+    for different sections (intro, verse, chorus, bridge, outro) and then
+    arrange them into a song.
+
+    Args:
+        name: Unique name for the pattern (e.g., "verse_drums", "chorus_bass")
+        pattern: Text-based drum pattern (same format as play_drum_pattern)
+        bpm: Default BPM for this pattern
+
+    Returns:
+        A summary of the stored pattern.
+    """
+    try:
+        result = midi.store_pattern(name, pattern, bpm)
+        tracks = ", ".join(result["track_names"])
+        return (
+            f"Stored pattern '{name}': {result['instruments']} instruments, "
+            f"{result['steps']} steps, {result['bpm']} BPM\n"
+            f"Tracks: {tracks}"
+        )
+    except Exception as e:
+        return f"Error storing pattern: {str(e)}"
+
+@server.tool()
+def list_patterns() -> List[Dict]:
+    """
+    List all stored patterns.
+
+    Returns:
+        A list of stored pattern summaries with names, instrument counts, and step counts.
+    """
+    patterns = midi.list_patterns()
+    if not patterns:
+        return [{"message": "No patterns stored yet. Use store_pattern() to save patterns."}]
+    return patterns
+
+@server.tool()
+def get_pattern(name: str) -> Dict:
+    """
+    Get details of a stored pattern.
+
+    Args:
+        name: Pattern name to retrieve.
+
+    Returns:
+        Pattern details including the original pattern text, BPM, and track info.
+    """
+    pattern = midi.get_pattern(name)
+    if not pattern:
+        return {"error": f"Pattern '{name}' not found. Use list_patterns() to see available patterns."}
+    return {
+        "name": name,
+        "pattern_text": pattern["pattern_text"],
+        "bpm": pattern["bpm"],
+        "steps": pattern["step_count"],
+        "instruments": len(pattern["tracks"]),
+        "track_names": [t["name"] for t in pattern["tracks"]],
+    }
+
+@server.tool()
+def delete_pattern(name: str) -> str:
+    """
+    Delete a stored pattern.
+
+    Args:
+        name: Pattern name to delete.
+
+    Returns:
+        A status message.
+    """
+    if midi.delete_pattern(name):
+        return f"Deleted pattern '{name}'"
+    return f"Pattern '{name}' not found"
+
+@server.tool()
+def play_stored_pattern(name: str, bpm: Optional[int] = None, repeat: int = 1) -> str:
+    """
+    Play a previously stored pattern.
+
+    Args:
+        name: Name of the stored pattern to play.
+        bpm: Override BPM (uses the pattern's stored BPM if not specified).
+        repeat: Number of times to repeat the pattern (default 1).
+
+    Returns:
+        A status message indicating success or failure.
+    """
+    if not midi.connected:
+        return "No MIDI device connected"
+
+    pattern = midi.get_pattern(name)
+    if not pattern:
+        return f"Pattern '{name}' not found. Use list_patterns() to see available patterns."
+
+    from koii.midi_interface import logger as midi_logger
+    with capture_logs(midi_logger) as log_capture:
+        success = midi.play_stored_pattern(name, bpm, repeat)
+
+    actual_bpm = bpm if bpm is not None else pattern["bpm"]
+    if success:
+        msg = f"Successfully played pattern '{name}' at {actual_bpm} BPM"
+        if repeat > 1:
+            msg += f" ({repeat} repeats)"
+        return msg
+    return f"Failed to play pattern '{name}'"
+
+# ----------------------------------------------------------------
+# Song Arrangement Tools
+# ----------------------------------------------------------------
+
+@server.tool()
+def create_song(name: str, arrangement: List[Dict], bpm: Optional[int] = None) -> str:
+    """
+    Create a song by arranging stored patterns in sequence.
+
+    This tool lets you compose full songs by specifying which patterns play
+    in what order and how many times each repeats.
+
+    Args:
+        name: Song name (e.g., "my_beat", "demo_track")
+        arrangement: List of sections, each a dict with:
+            - "pattern": name of a stored pattern (required)
+            - "repeat": times to play this pattern (default 1)
+            - "bpm": override BPM for this section (optional)
+        bpm: Default BPM for the whole song (optional, overrides pattern BPMs)
+
+    Returns:
+        A summary of the created song.
+
+    Example arrangement:
+        [
+            {"pattern": "intro", "repeat": 2},
+            {"pattern": "verse", "repeat": 4},
+            {"pattern": "chorus", "repeat": 4},
+            {"pattern": "verse", "repeat": 4},
+            {"pattern": "chorus", "repeat": 4},
+            {"pattern": "outro", "repeat": 2}
+        ]
+    """
+    try:
+        result = midi.create_song(name, arrangement, bpm)
+        sections_str = " → ".join(
+            f"{s['pattern']}(x{s['repeat']})" for s in result["arrangement"]
+        )
+        return (
+            f"Created song '{name}': {result['sections']} sections, "
+            f"{result['total_pattern_plays']} total pattern plays\n"
+            f"Arrangement: {sections_str}"
+        )
+    except ValueError as e:
+        return f"Error creating song: {str(e)}"
+
+@server.tool()
+def list_songs() -> List[Dict]:
+    """
+    List all stored songs.
+
+    Returns:
+        A list of song summaries.
+    """
+    songs = midi.list_songs()
+    if not songs:
+        return [{"message": "No songs created yet. Use create_song() to arrange patterns into songs."}]
+    return songs
+
+@server.tool()
+def get_song(name: str) -> Dict:
+    """
+    Get details of a stored song.
+
+    Args:
+        name: Song name to retrieve.
+
+    Returns:
+        Song details including arrangement.
+    """
+    song = midi.get_song(name)
+    if not song:
+        return {"error": f"Song '{name}' not found. Use list_songs() to see available songs."}
+    return {
+        "name": name,
+        "bpm": song.get("bpm"),
+        "arrangement": [
+            {
+                "pattern": s["pattern"],
+                "repeat": s.get("repeat", 1),
+                "bpm": s.get("bpm"),
+            }
+            for s in song["arrangement"]
+        ],
+    }
+
+@server.tool()
+def delete_song(name: str) -> str:
+    """
+    Delete a stored song.
+
+    Args:
+        name: Song name to delete.
+
+    Returns:
+        A status message.
+    """
+    if midi.delete_song(name):
+        return f"Deleted song '{name}'"
+    return f"Song '{name}' not found"
+
+@server.tool()
+def play_song(name: str, bpm: Optional[int] = None) -> str:
+    """
+    Play a stored song (sequence of patterns).
+
+    Args:
+        name: Song name to play.
+        bpm: Override BPM for all sections (optional).
+
+    Returns:
+        A status message indicating success or failure.
+    """
+    if not midi.connected:
+        return "No MIDI device connected"
+
+    song = midi.get_song(name)
+    if not song:
+        return f"Song '{name}' not found. Use list_songs() to see available songs."
+
+    from koii.midi_interface import logger as midi_logger
+    with capture_logs(midi_logger) as log_capture:
+        success = midi.play_song(name, bpm)
+
+    if success:
+        sections = len(song["arrangement"])
+        return f"Successfully played song '{name}' ({sections} sections)"
+    return f"Failed to play song '{name}'"
+
+@server.tool()
+def list_common_instruments() -> Dict[str, int]:
+    """
+    List all common instrument names and their MIDI note mappings.
+
+    These are the instrument names you can use in drum pattern comments
+    (e.g., '# kick', '# snare', '# hi-hat') for quick pattern creation.
+
+    Returns:
+        A dictionary mapping instrument names to MIDI note numbers.
+    """
+    return dict(sorted(COMMON_INSTRUMENTS.items(), key=lambda x: x[1]))
+
 @server.prompt()
 def midi_info() -> str:
     """Provide information about the EP-133 K.O. II MIDI implementation."""
     return """
     # EP-133 K.O. II MIDI Controller
 
-    This is the KOII MCP server for controlling the Teenage Engineering EP-133 K.O. II sampler via MIDI.
-    
-    ## Pad Mapping
-    
-    Pads are mapped to MIDI note numbers by default:
-    
-    | Group | MIDI Notes    | Pads          |
-    |-------|---------------|---------------|
-    | A     | 36–47 (C2–B2) | Pads A. to A9 |
-    | B     | 48–59 (C3–B3) | Pads B. to B9 |
-    | C     | 60–71 (C4–B4) | Pads C. to C9 |
-    | D     | 72–83 (C5–B5) | Pads D. to D9 |
-    
-    ## Available Functions
-    
-    ### Basic MIDI Operations
-    - `list_midi_ports()`: List all available MIDI ports
-    - `connect_to_device(port_name, port_index)`: Connect to a MIDI device
-    - `disconnect()`: Disconnect from the current MIDI device
-    - `play_note(note, velocity, duration, channel)`: Play a single note
-    - `play_pattern(notes, channel)`: Play a pattern of notes
-    
-    ### Drum Patterns
-    - `play_drum_pattern(pattern, bpm)`: Play a text-based drum pattern
-    
+    MCP server for controlling the Teenage Engineering EP-133 K.O. II sampler via MIDI.
+
+    ## Device MIDI Specification (OS 2.0+)
+
+    - **Channels**: 1-16 (default: channel 1, receives on all channels)
+    - **Note ranges**: Group A (36-47), B (48-59), C (60-71), D (72-83)
+    - **Keys mode**: Notes 0-127
+    - **Supports**: Note On/Off, Velocity, Pitch Bend (rx), CC#0/32/1, Program Change, Clock
+    - **Does not support**: Aftertouch, SysEx, Song Position/Select, Active Sensing
+    - **Clock resolution**: 96 PPQN
+    - **I/O**: USB MIDI and TRS-A (3.3V, MMA compliant)
+    - **OS 2.0+ features**: MIDI thru, per-pad channel assignment, pitch bend/mod wheel
+
+    ## Pad Layout & MIDI Mapping
+
+    | Group | MIDI Notes    | Pads          | Default Use        |
+    |-------|---------------|---------------|--------------------|
+    | A     | 36-47 (C2-B2) | A. to A9     | Drums & Percussion |
+    | B     | 48-59 (C3-B3) | B. to B9     | Bass               |
+    | C     | 60-71 (C4-B4) | C. to C9     | Melodic & Synth    |
+    | D     | 72-83 (C5-B5) | D. to D9     | User Samples       |
+
+    ## Available Tools
+
+    ### Connection
+    - `list_midi_ports()` / `connect_to_device()` / `disconnect()`
+
+    ### Playing
+    - `play_note()` - Single note
+    - `play_pattern()` - Note sequence
+    - `play_drum_pattern()` - Text-based drum pattern (with repeat support)
+
+    ### Pattern Management (for building songs collaboratively)
+    - `store_pattern()` - Save a named pattern
+    - `list_patterns()` / `get_pattern()` / `delete_pattern()`
+    - `play_stored_pattern()` - Play a saved pattern with optional repeat
+
+    ### Song Arrangement
+    - `create_song()` - Arrange patterns into a song structure
+    - `list_songs()` / `get_song()` / `delete_song()`
+    - `play_song()` - Play a complete song
+
     ### Sound Library
-    - `list_sound_categories()`: List all available sound categories
-    - `list_sounds_in_category(category)`: List all sounds in a specific category
-    - `get_default_pad_configuration()`: Get the default sounds mapped to each pad
-    
+    - `list_sound_categories()` / `list_sounds_in_category()`
+    - `get_default_pad_configuration()`
+    - `list_common_instruments()` - Quick reference for instrument names
+
     ### Scale Mode
-    - `list_available_scales()`: List all available musical scales with descriptions
-    - `get_scale_mapping(channel, scale_name, root_note, octave)`: Map pads to notes in a scale
-    - `play_scale_sequence(channel, scale_name, root_note, sequence)`: Play a melodic sequence
+    - `list_available_scales()` / `get_scale_mapping()` / `play_scale_sequence()`
+
+    ## Workflow for Making Songs
+
+    1. Create patterns for each section: `store_pattern("verse_drums", "x...x... # kick\\n...")`
+    2. Test patterns: `play_stored_pattern("verse_drums")`
+    3. Build more patterns for other sections (chorus, bridge, etc.)
+    4. Arrange into a song: `create_song("my_track", [{"pattern": "intro", "repeat": 2}, ...])`
+    5. Play the complete song: `play_song("my_track")`
     """
 
 @server.prompt()
@@ -737,139 +1024,98 @@ def drum_pattern_help() -> str:
     """Provide help on creating drum patterns."""
     return """
     # Creating Drum Patterns
-    
-    You can create and play drum patterns using the `play_drum_pattern()` function.
-    
+
+    Use `play_drum_pattern()` to play patterns, or `store_pattern()` to save them.
+
     ## Pattern Format
-    
-    The pattern is specified as a multi-line string, where:
-    - Each line represents a different instrument or pad
-    - 'x' or 'X' indicates a hit (high velocity, 100)
-    - 'o' or 'O' indicates a softer hit (lower velocity, 60)
-    - Digits '1'-'9' for velocity values from gentle (1) to hard (9)
-    - 'v' followed by digits (e.g., 'v64', 'v127') for exact velocity values 
-    - '.' indicates no hit
-    - Each position represents a 16th note
-    - Comments after '#' specify what sound to trigger
-    
-    ## Flexible Reference System
-    
-    The drum pattern parser supports **four different ways** to reference sounds:
-    
-    1. **Pad Labels**: Direct references to physical pads (A0, B3, C7)
-    2. **MIDI Notes**: Direct MIDI note numbers (36, 42, 51)
-    3. **Instrument Names**: Common drum instruments (kick, snare, hi-hat)
-    4. **Sound Names**: Actual sound names from the library ("MICRO KICK", "NT SNARE")
-    
-    You can even mix these reference types within the same pattern!
-    
-    ## Example Patterns
-    
-    Using traditional instrument names:
+
+    Each line = one instrument. Each character position = one 16th note step.
+
+    ### Step Notation
+    - `x` / `X`: Hit at velocity 100 (hard)
+    - `o` / `O`: Hit at velocity 60 (soft/ghost note)
+    - `1`-`9`: Hit at scaled velocity (1=14 gentle, 5=70 medium, 9=126 hard)
+    - `v` + digits: Hit at exact velocity (e.g., `v64`, `v127`) - counts as ONE step
+    - `.` / `-`: Rest (no hit)
+    - `0`: Rest (alternative)
+    - ` ` (space): Ignored - use for visual grouping
+
+    ### Important: The `v` notation
+    `v64` is a single step hit at velocity 64. The digits after `v` are part of
+    the velocity value, not separate steps. So `v64.v32.` = 4 steps (hit, rest, hit, rest).
+
+    ## Instrument References (after #)
+
+    Four ways to specify which sound to trigger (checked in this order):
+
+    1. **Common instrument names** (fastest, most reliable):
+       `kick`, `snare`, `hi-hat`, `clap`, `ride`, `crash`, `bass`, etc.
+       Use `list_common_instruments()` for the full list.
+
+    2. **MIDI note numbers**: `36`, `40`, `43`, etc.
+
+    3. **Pad labels**: `A.`, `A0`, `A1`-`A9`, `B.`, `B1`, etc.
+
+    4. **Sound library names**: `"MICRO KICK"`, `"NT SNARE"`, etc.
+
+    ## Common Instrument Quick Reference
+
+    | Name            | Pad  | MIDI | Default Sound     |
+    |-----------------|------|------|-------------------|
+    | kick            | A.   | 36   | MICRO KICK        |
+    | snare           | A2   | 40   | NT SNARE ALT      |
+    | clap            | A3   | 41   | NT CLAP           |
+    | rim / rimshot   | A4   | 42   | NT RIMSHOT        |
+    | hi-hat / hh     | A5   | 43   | NT HH CLOSED      |
+    | ride            | A6   | 44   | NT RIDE           |
+    | perc            | A7   | 45   | NT PERC           |
+    | open hat / oh   | A8   | 46   | NT HH OPEN        |
+    | crash / cymbal  | A9   | 47   | NT RIDE C         |
+    | bass            | B.   | 48   | NT BASS           |
+
+    ## Examples
+
+    ### Basic 4/4 beat:
     ```
     x...x...x...x...  # kick
     ....x.......x...  # snare
-    x.x.x.x.x.x.x.x.  # hi-hat
+    x.x.x.x.x.x.x.x  # hi-hat
     ```
-    
-    Using pad references:
+
+    ### With visual grouping (spaces are ignored):
     ```
-    x...x...x...x...  # A.
-    ....x.......x...  # A2
-    x.x.x.x.x.x.x.x.  # A5
+    x... x... x... x...  # kick
+    .... x... .... x...  # snare
+    x.x. x.x. x.x. x.x  # hi-hat
     ```
-    
-    Using MIDI note numbers:
+
+    ### Dynamic velocities:
     ```
-    x...x...x...x...  # 36
-    ....x.......x...  # 38
-    x.x.x.x.x.x.x.x.  # 42
+    9...5...7...3...  # kick
+    o.o.X.o.o.o.X.o  # snare (ghost notes + accents)
+    5.3.5.7.5.9.5.1  # hi-hat (changing intensity)
     ```
-    
-    Using sound library names:
+
+    ### Exact velocity control:
     ```
-    x...x...x...x...  # "MICRO KICK"
-    ....x.......x...  # "NT SNARE"
-    x.x.x.x.x.x.x.x.  # "NT HH CLOSED"
+    v120..v80..v40..v10..  # kick (crescendo/decrescendo)
     ```
-    
-    Using mixed references:
+
+    ### Multi-channel pattern:
     ```
-    x...x...x...x...  # A.       (pad reference)
-    ....x.......x...  # 38       (MIDI note)
-    x.x.x.x.x.x.x.x.  # hi-hat   (instrument name)
-    ......x.........  # "NT RIDE" (sound name)
+    x...x...x...x...  # kick
+    ....x.......x...  # snare
+    x.x.x.x.x.x.x.x  # hi-hat
+    x...............  # bass
+    ........x.......  # melodic
     ```
-    
-    ## Dynamic Velocity Examples
-    
-    Using numeric velocity values (1-9):
-    ```
-    9...5...3...1...  # kick     (velocity decreasing)
-    ....6.......8...  # snare    (medium then hard)
-    5.3.5.7.5.9.5.1.  # hi-hat   (changing accents)
-    ```
-    
-    Using exact velocity values:
-    ```
-    v120....v80....v40....v10....  # kick    (precise velocities)
-    ....v64.......v96...          # snare   (medium then harder)
-    v30.v30.v100...v30.v30.v127.  # hi-hat  (ghost notes with accents)
-    ```
-    
-    Combining different velocity notations:
-    ```
-    x...5...o...1...       # kick     (mix of notation styles)
-    ....v100...v64...v32.  # snare    (decaying echo effect)
-    x.o.3.5.7.9.v127.v10.  # hi-hat   (complex pattern)
-    ```
-    
-    ## Sound Name References
-    
-    When using sound names:
-    - Enclose them in quotes if they contain spaces: `# "MICRO KICK"`
-    - They are automatically case-insensitive
-    - Partial matches work as well, finding the closest match
-    
-    ## MIDI Note References
-    
-    You can directly specify MIDI notes:
-    - Use the numerical value: `# 36`
-    - Valid range is 0-127
-    
-    ## Pad References
-    
-    You can specify which pad to trigger using its label:
-    
-    - **Channel A**: A. (bottom left), A0, A1-A9
-    - **Channel B**: B. (bottom left), B0, B1-B9
-    - **Channel C**: C. (bottom left), C0, C1-C9
-    - **Channel D**: D. (bottom left), D0, D1-D9
-    
-    This works regardless of what sounds are mapped to those pads.
-    
-    ## Instrument Name References
-    
-    Drum instrument names are mapped to specific pads in the default configuration:
-    
-    | Instrument      | Pad | MIDI Note | Default Sound     |
-    |-----------------|-----|-----------|-------------------|
-    | kick            | A.  | 36 (C2)   | MICRO KICK        |
-    | snare           | A2  | 40 (E2)   | NT SNARE ALT      |
-    | clap            | A3  | 41 (F2)   | NT CLAP           |
-    | low tom         | A4  | 42 (F#2)  | NT TAMBO          |
-    | closed hi-hat   | A5  | 43 (G2)   | NT HH CLOSED      |
-    | mid tom         | A6  | 44 (G#2)  | NT RIDE           |
-    | high tom/perc   | A7  | 45 (A2)   | NT PERC           |
-    | open hi-hat/ride| A8  | 46 (A#2)  | NT HH OPEN        |
-    | crash/cymbal    | A9  | 47 (B2)   | NT RIDE C         |
-    
-    ## Finding Available Sounds
-    
-    To see what sounds are available and how they're mapped to pads:
-    - `list_sound_categories()`: View available categories
-    - `list_sounds_in_category(category)`: View sounds in a category
-    - `get_default_pad_configuration()`: See the full pad mapping
+
+    ## Building Songs
+
+    1. Store patterns: `store_pattern("verse", "x...x... # kick\\n...")`
+    2. Test them: `play_stored_pattern("verse")`
+    3. Arrange: `create_song("track", [{"pattern": "verse", "repeat": 4}, ...])`
+    4. Play: `play_song("track")`
     """
 
 # If this script is executed directly, run the server
