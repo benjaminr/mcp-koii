@@ -19,7 +19,6 @@ EP-133 K.O. II MIDI Specification (OS 2.0+):
 import time
 import logging
 import re
-import copy
 from typing import Dict, List, Optional, Tuple, Union, Set, Any
 
 import mido
@@ -46,42 +45,38 @@ VELOCITY_DEFAULT = 80  # default value when not specified
 # This avoids the fragile chain of sound library search → pad config → pad-to-note.
 COMMON_INSTRUMENTS = {
     # Channel A - Drums & Percussion
-    "kick": 36,           # A. - MICRO KICK
-    "kick2": 37,          # A0 - NT ALT KICK
+    # Default pad config (Project 1): A.=MICRO KICK, A0=NT ALT KICK, AFX=NT CLAP,
+    # A1=NT SNARE, A2=NT SNARE ALT, A3=NT RIMSHOT, A4=NT TAMBO, A5=NT HH CLOSED,
+    # A6=NT HH OPEN, A7=NT PERC, A8=NT RIDE, A9=NT RIDE C
+    "kick": 36,           # A. (36) - MICRO KICK
+    "kick2": 37,          # A0 (37) - NT ALT KICK
     "bass drum": 36,      # A. alias
     "bd": 36,             # A. alias
-    "snare": 40,          # A2 - NT SNARE ALT
-    "snare2": 41,         # A3 - NT SNARE ALT B (shared with rimshot position)
+    "snare": 40,          # A2 (40) - NT SNARE ALT
     "sd": 40,             # A2 alias
-    "rimshot": 42,        # A4 - NT RIMSHOT (via DEFAULT_PAD_CONFIG)
-    "rim": 42,            # A4 alias
-    "clap": 41,           # A3 - NT CLAP (via DEFAULT_PAD_CONFIG)
-    "cp": 41,             # A3 alias
-    "hi-hat": 43,         # A5 - NT HH CLOSED
+    "clap": 38,           # AFX (38) - NT CLAP
+    "cp": 38,             # AFX alias
+    "rimshot": 41,        # A3 (41) - NT RIMSHOT
+    "rim": 41,            # A3 alias
+    "hi-hat": 43,         # A5 (43) - NT HH CLOSED
     "hihat": 43,          # A5 alias
     "hh": 43,             # A5 alias
     "closed hat": 43,     # A5 alias
     "closed hi-hat": 43,  # A5 alias
-    "open hat": 46,       # A8 - NT HH OPEN
-    "open hi-hat": 46,    # A8 alias
-    "oh": 46,             # A8 alias
-    "ride": 44,           # A6 - NT RIDE
-    "ride cymbal": 44,    # A6 alias
-    "crash": 47,          # A9 - NT RIDE C / crash position
+    "open hat": 44,       # A6 (44) - NT HH OPEN
+    "open hi-hat": 44,    # A6 alias
+    "oh": 44,             # A6 alias
+    "ride": 46,           # A8 (46) - NT RIDE
+    "ride cymbal": 46,    # A8 alias
+    "crash": 47,          # A9 (47) - NT RIDE C
     "cymbal": 47,         # A9 alias
-    "tom": 42,            # A4 - general tom
-    "low tom": 42,        # A4
-    "mid tom": 44,        # A6
-    "high tom": 45,       # A7
-    "tambourine": 43,     # A5 area (default has NT TAMBO on A4)
-    "tambo": 43,          # alias
-    "perc": 45,           # A7 - NT PERC
+    "tambourine": 42,     # A4 (42) - NT TAMBO
+    "tambo": 42,          # A4 alias
+    "perc": 45,           # A7 (45) - NT PERC
     "percussion": 45,     # A7 alias
-    "shaker": 45,         # A7 area
-    "cowbell": 45,        # A7 area
-    "clave": 45,          # A7 area
-    "conga": 45,          # A7 area
-    "bongo": 45,          # A7 area
+    "shaker": 45,         # A7 alias
+    "cowbell": 45,        # A7 alias
+    "clave": 45,          # A7 alias
 
     # Channel B - Bass
     "bass": 48,           # B. - NT BASS
@@ -98,7 +93,7 @@ COMMON_INSTRUMENTS = {
     "organ": 60,          # C. alias
 }
 
-# Sound library categories from sounds.md
+# Sound library categories (based on EP-133 K.O. II factory sounds)
 SOUND_CATEGORIES = [
     "Kicks",
     "Snares",

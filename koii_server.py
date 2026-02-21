@@ -264,9 +264,10 @@ def play_drum_pattern(pattern: str, bpm: int = 120, repeat: int = 1) -> str:
     4. Sound library names: "MICRO KICK", "NT SNARE", etc.
 
     Default drum mappings (Channel A):
-    - kick → A. (36)    - snare → A2 (40)   - clap → A3 (41)
-    - hi-hat → A5 (43)  - open hat → A8 (46) - ride → A6 (44)
-    - crash → A9 (47)   - perc → A7 (45)
+    - kick → A. (36)    - snare → A2 (40)   - clap → AFX (38)
+    - rimshot → A3 (41) - tambo → A4 (42)   - hi-hat → A5 (43)
+    - open hat → A6 (44)- perc → A7 (45)    - ride → A8 (46)
+    - crash → A9 (47)
 
     Args:
         pattern: Text-based drum pattern
@@ -1006,8 +1007,8 @@ def pad_configuration_help() -> str:
     
     ```
     x...x...x...x...  # A.  (Bottom left pad, MIDI note 36)
-    ....x.......x...  # A2  (Bottom row, MIDI note 38)
-    x.x.x.x.x.x.x.x.  # A5  (Middle pad, MIDI note 41)
+    ....x.......x...  # A2  (Bottom row, MIDI note 40)
+    x.x.x.x.x.x.x.x.  # A5  (Middle pad, MIDI note 43)
     ```
     
     This allows your patterns to work correctly even if the sound mapping changes.
@@ -1063,13 +1064,14 @@ def drum_pattern_help() -> str:
     | Name            | Pad  | MIDI | Default Sound     |
     |-----------------|------|------|-------------------|
     | kick            | A.   | 36   | MICRO KICK        |
-    | snare           | A2   | 40   | NT SNARE ALT      |
-    | clap            | A3   | 41   | NT CLAP           |
-    | rim / rimshot   | A4   | 42   | NT RIMSHOT        |
+    | clap / cp       | AFX  | 38   | NT CLAP           |
+    | snare / sd      | A2   | 40   | NT SNARE ALT      |
+    | rimshot / rim   | A3   | 41   | NT RIMSHOT        |
+    | tambo           | A4   | 42   | NT TAMBO          |
     | hi-hat / hh     | A5   | 43   | NT HH CLOSED      |
-    | ride            | A6   | 44   | NT RIDE           |
+    | open hat / oh   | A6   | 44   | NT HH OPEN        |
     | perc            | A7   | 45   | NT PERC           |
-    | open hat / oh   | A8   | 46   | NT HH OPEN        |
+    | ride            | A8   | 46   | NT RIDE           |
     | crash / cymbal  | A9   | 47   | NT RIDE C         |
     | bass            | B.   | 48   | NT BASS           |
 
@@ -1117,10 +1119,6 @@ def drum_pattern_help() -> str:
     3. Arrange: `create_song("track", [{"pattern": "verse", "repeat": 4}, ...])`
     4. Play: `play_song("track")`
     """
-
-# If this script is executed directly, run the server
-if __name__ == "__main__":
-    server.run()
 
 @server.prompt()
 def scale_mode_help() -> str:
@@ -1244,3 +1242,6 @@ def scale_mode_help() -> str:
     - If the device display shows different notes than expected, double check your scale configuration on the device
     """
 
+# If this script is executed directly, run the server
+if __name__ == "__main__":
+    server.run()
