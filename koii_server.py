@@ -371,42 +371,40 @@ def get_default_pad_configuration() -> Dict[str, Dict]:
     
     # Define the physical layout of pads
     pad_layout = [
-        ["7", "8", "9"],   # Top row
-        ["4", "5", "6"],   # Middle row
-        ["1", "2", "3"],   # Bottom row
-        [".", "0", "FX"]   # Special bottom row
+        ["7", "8", "9"],       # Top row
+        ["4", "5", "6"],       # Middle row
+        ["1", "2", "3"],       # Bottom row
+        [".", "0", "Enter"]    # Special bottom row (Enter = ↵, MIDI offset +2)
     ]
-    
+
     for channel, config in DEFAULT_PAD_CONFIG.items():
         detailed_config[channel] = {"rows": []}
-        
+
         # Get the base MIDI note for this channel
         base_midi_note = min(PAD_GROUPS[channel])
-        
+
         # Process each row from bottom to top, as they appear in DEFAULT_PAD_CONFIG
         for row_idx, sound_row in enumerate(config["pads"]):
             # Convert to physical layout row (reversed order from DEFAULT_PAD_CONFIG)
             physical_row_idx = 3 - row_idx
             physical_row = pad_layout[physical_row_idx]
-            
+
             row_data = []
-            
+
             for col_idx, sound_number in enumerate(sound_row):
-                # Skip FX pad as it's not directly addressable via MIDI
-                if physical_row_idx == 3 and col_idx == 2:  # FX pad
-                    pad_label = f"{channel}FX"
-                    midi_note = None  # Not directly addressable
+                # Enter pad (officially labeled ↵ on the device)
+                if physical_row_idx == 3 and col_idx == 2:  # Enter pad
+                    pad_label = f"{channel}Enter"
+                    midi_note = base_midi_note + 2  # Enter pad is at offset +2
                 else:
                     pad_label = f"{channel}{physical_row[col_idx]}"
-                    
+
                     # Calculate MIDI note number based on position
                     if physical_row_idx == 3:  # Special bottom row
                         if col_idx == 0:  # '.' pad
                             midi_note = base_midi_note + 0  # A. = 36, B. = 48, etc.
                         elif col_idx == 1:  # '0' pad
                             midi_note = base_midi_note + 1  # A0 = 37, B0 = 49, etc.
-                        elif col_idx == 2:  # 'FX' pad
-                            midi_note = base_midi_note + 2  # AFX = 38, BFX = 50, etc.
                     else:
                         # For regular numbered pads (1-9)
                         # The MIDI layout follows bottom-to-top, left-to-right
@@ -855,14 +853,18 @@ def midi_info() -> str:
 
     ## Device MIDI Specification (OS 2.0+)
 
-    - **Channels**: 1-16 (default: channel 1, receives on all channels)
+    - **Channels**: 1-16 (default: channel 1, OMNI ON receives on all channels)
     - **Note ranges**: Group A (36-47), B (48-59), C (60-71), D (72-83)
-    - **Keys mode**: Notes 0-127
-    - **Supports**: Note On/Off, Velocity, Pitch Bend (rx), CC#0/32/1, Program Change, Clock
-    - **Does not support**: Aftertouch, SysEx, Song Position/Select, Active Sensing
-    - **Clock resolution**: 96 PPQN
+    - **Keys mode**: Notes 0-127 (chromatic playback of selected sample)
+    - **Supports**: Note On/Off, Velocity, Pitch Bend (rx), CC#0/32/1, Program Change,
+      Clock, Start/Stop/Continue, Song Position, SysEx (identity)
+    - **Does not support**: Aftertouch (output), System Reset
+    - **Note**: Program Change removed from device mapping in OS 2.0.2 (Oct 2025);
+      use Bank Select (CC#0/32) for sound addressing
+    - **Clock resolution**: 96 PPQN internal, 24 PPQN MIDI clock
     - **I/O**: USB MIDI and TRS-A (3.3V, MMA compliant)
     - **OS 2.0+ features**: MIDI thru, per-pad channel assignment, pitch bend/mod wheel
+    - **Pad layout**: 12 pads per group (., 0, Enter, 1-9)
 
     ## Pad Layout & MIDI Mapping
 
@@ -923,31 +925,36 @@ def pad_configuration_help() -> str:
     ## Physical Pad Layout
     
     ```
-    +-----+-----+-----+  
-    | A7  | A8  | A9  |  ← Top row
-    +-----+-----+-----+  
-    | A4  | A5  | A6  |  ← Middle row
-    +-----+-----+-----+  
-    | A1  | A2  | A3  |  ← Bottom row
-    +-----+-----+-----+  
-    | A.  | A0  | FX  |  ← Special bottom row
-    +-----+-----+-----+  
+    +-------+-------+-------+
+    |  A7   |  A8   |  A9   |  ← Top row
+    +-------+-------+-------+
+    |  A4   |  A5   |  A6   |  ← Middle row
+    +-------+-------+-------+
+    |  A1   |  A2   |  A3   |  ← Bottom row
+    +-------+-------+-------+
+    |  A.   |  A0   | Enter |  ← Special bottom row
+    +-------+-------+-------+
     ```
-    
+
+    Note: The third pad in the bottom row is officially labeled "Enter" (↵) by
+    Teenage Engineering. It is NOT the FX button (which is a separate hardware
+    button for punch-in effects). Both "FX" and "ENTER" are accepted as pad
+    references for backwards compatibility.
+
     The same layout applies to channels B, C, and D.
-    
+
     ## Three Important Number Systems
-    
-    1. **Pad Labels**: The physical labels on the pads (A., A0, A1-A9)
+
+    1. **Pad Labels**: The physical labels on the pads (A., A0, A1-A9, plus Enter)
     2. **MIDI Note Numbers**: The actual MIDI notes sent to trigger sounds (36-83)
     3. **Sound IDs**: The internal sound numbers used in the sound library (1, 100, 500, etc.)
-    
+
     ### Pad Labels to MIDI Note Mapping
-    
-    - **Channel A**: 
+
+    - **Channel A**:
       - A. → 36 (C2)
       - A0 → 37 (C#2)
-      - FX → 38 (D2)
+      - Enter → 38 (D2)
       - A1 → 39 (D#2)
       - A2 → 40 (E2)
       - A3 → 41 (F2)
