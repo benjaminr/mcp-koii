@@ -108,7 +108,9 @@ class Studio:
             return "connected to the browser simulator; open the visualiser to hear it"
         ports = self.list_ports()
         if not ports:
-            raise NotConnected("no MIDI outputs found. Is the EP-133 plugged in over USB and switched on?")
+            raise NotConnected("no MIDI outputs found. Is the EP-133 plugged in over USB and switched on? "
+                               "macOS only shows a running program devices that were there when it started, "
+                               "so if you plugged it in since, restart koii")
         if port:
             matches = [p for p in ports if p == port] or [p for p in ports if port.lower() in p.lower()]
             if not matches:

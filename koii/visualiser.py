@@ -32,7 +32,7 @@ from urllib.parse import parse_qs, urlparse
 from koii.files import DeviceFileError
 from koii.library import LibraryError
 from koii.notation import NotationError
-from koii.studio import Studio
+from koii.studio import NotConnected, Studio
 
 logger = logging.getLogger(__name__)
 
@@ -417,6 +417,10 @@ def main() -> None:
     visualiser = Visualiser(studio, port=options.port)
     url = visualiser.start()
     print(f"KOII visualiser at {url} (Ctrl+C to stop)", flush=True)
+    try:
+        print(studio.connect(), flush=True)
+    except NotConnected as e:   # no device yet; it can still be connected from the page
+        print(f"not connected: {e}", flush=True)
     if not options.no_browser:
         open_in_browser(url)
     try:
