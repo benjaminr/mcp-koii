@@ -483,16 +483,14 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 }
 .arrangement:focus { outline: 2px solid var(--signal); outline-offset: 1px; }
 
-/* -- the library band: saved list beside the arranger ---------------------------------- */
+/* -- pattern lists (Beat and Song) ---------------------------------------------------- */
 
-.library-body { display: grid; grid-template-columns: minmax(260px, 0.75fr) minmax(0, 2.25fr); gap: 18px; align-items: start; }
-@media (max-width: 1100px) { .library-body { grid-template-columns: minmax(0, 1fr); } }
-.library-saved, .arrange { min-width: 0; }
-.library-saved .library { border-top: 0; }
-.library-saved .caption b, .arrange .caption b { color: var(--ink); }
+.pattern-list { border-top: 0; }
+.arrange .caption b, .pattern-list ~ .caption b, .module .caption b { color: var(--ink); }
 .library-item[draggable="true"] { cursor: grab; }
 .library-item[draggable="true"]:active { cursor: grabbing; }
 .arrange-controls { margin-top: 10px; }
+.arrange { min-width: 0; }
 
 /* -- the arranger grid ----------------------------------------------------------------- */
 
@@ -895,3 +893,58 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .pack-credit { font-size: 11px; color: var(--ink-2); }
 .pack-controls { margin-top: 2px; }
 .pack-project { background: #fff; border: var(--line) solid var(--ink); border-radius: 3px; padding: 3px 5px; font-size: 12px; }
+
+/* -- views ------------------------------------------------------------------------- */
+
+.views { display: flex; border: var(--line) solid var(--ink); border-radius: 3px; overflow: hidden; }
+.view-tab {
+  background: var(--paper); border: 0; border-right: var(--line) solid var(--ink); padding: 7px 14px; cursor: pointer;
+  font-weight: 500; font-size: 14px;
+}
+.view-tab:last-child { border-right: 0; }
+.view-tab:hover { background: #fff; }
+.view-tab.active { background: var(--ink); color: var(--paper); }
+.view-tab:focus-visible { outline: 2px solid var(--signal); outline-offset: -3px; }
+main.view[hidden] { display: none !important; }
+
+/* -- the log drawer --------------------------------------------------------------- */
+
+.log-count { margin-left: 4px; background: var(--signal); color: var(--ink); border-radius: 8px; padding: 0 6px; font-size: 11px; }
+.log-drawer {
+  position: fixed; right: 16px; top: calc(var(--topbar-height, 64px) + 10px); bottom: 16px; width: min(420px, calc(100vw - 32px));
+  z-index: 20; display: flex; flex-direction: column; background: var(--paper);
+  border: var(--line) solid var(--ink); border-radius: 3px; box-shadow: var(--shadow);
+}
+.log-drawer-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;
+                   border-bottom: var(--line) solid var(--ink); font-family: var(--num); font-size: 11px;
+                   text-transform: uppercase; letter-spacing: 0.06em; }
+.log-drawer .activity { flex: 1; max-height: none; overflow-y: auto; padding: 0 12px; }
+
+/* -- the pad map (Device view) ------------------------------------------------------ */
+
+.pad-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 6px 0 12px; }
+.pad-map-group { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.pad-map-title { grid-column: 1 / -1; font-family: var(--num); font-size: 12px; letter-spacing: 0.08em; }
+.pad-map-cell {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 52px; min-width: 0;
+  padding: 4px 5px; text-align: left; cursor: pointer;
+  background: var(--pad); color: var(--pad-text); border: var(--line) solid var(--ink); border-radius: 3px;
+}
+.pad-map-cell.empty { background: var(--paper-2); color: var(--muted); }
+.pad-map-cell.pitched { box-shadow: inset 0 -3px 0 var(--press); }
+.pad-map-cell.selected { outline: 3px solid var(--signal); outline-offset: 1px; }
+.pad-map-cell:hover { filter: brightness(1.15); }
+.pad-map-key { font-size: 12px; }
+.pad-map-tags { position: absolute; top: 4px; right: 5px; font-size: 9px; color: var(--signal); }
+.pad-map-name { font-size: 10px; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 900px) { .pad-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Pattern lists scroll inside their module, with a filter on top. */
+.pattern-filter { width: 100%; margin: 0 0 6px; }
+.pattern-list { max-height: calc(100vh - var(--topbar-height, 64px) - 190px); min-height: 160px; overflow-y: auto; }
+.pattern-caption { margin-top: 8px; }
+
+/* A tighter top bar: the subtitle goes first when space runs short. */
+@media (max-width: 1700px) { .logo-sub { display: none; } .topbar { gap: 14px; } }
+@media (max-width: 1450px) { .view-tab { padding: 7px 10px; } .transport { gap: 6px; } .now-playing { min-width: 140px; } }
+.settings .switch.small { padding: 1px 8px; }

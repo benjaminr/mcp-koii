@@ -20,6 +20,10 @@ import { LiveStrip, permittedDeviceInput } from "./sound.js";
 const $ = (selector) => document.querySelector(selector);
 const STORAGE_KEY = "koii.editor";
 const KEY_STORAGE_KEY = "koii.grid-key";
+const VIEW_STORAGE_KEY = "koii.view";
+const VIEWS = ["beat", "song", "sounds", "device"];
+// Space plays what the view is about; Sounds plays the sound being designed (designer.js handles that).
+const VIEW_FOCUS = { beat: "pattern", song: "song" };
 const LISTEN_STORAGE_KEY = "koii.sound.listen";
 const CHECK_DELAY_MS = 250;
 const LIVE_DELAY_MS = 300;
@@ -41,6 +45,8 @@ const state = {
   arrangerPlaying: false,  // the arranger's song is what's playing, so it shows the playhead
   playingName: null,       // a library pattern played from its row
   focus: "pattern",        // what ▶ and Space play: "pattern" (the editor) or "song" (the arranger)
+  view: "beat",            // the view on screen: beat, song, sounds or device
+  unread: 0,               // log entries since the log was last opened
   requested: null,         // the last play this page asked for: { label, mark }; passes are matched to it
   activity: [],
 };
@@ -436,7 +442,7 @@ function renderTransport() {
   const song = $("#arr-play");
   song.textContent = kind === "song" ? "■ stop" : "▶ play song";
   song.classList.toggle("playing", kind === "song");
-  for (const row of document.querySelectorAll("#library .library-item[data-name]")) {
+  for (const row of document.querySelectorAll(".pattern-list .library-item[data-name]")) {
     const play = row.querySelector(".row-play");
     const playing = kind === `name:${row.dataset.name}` || (row.dataset.kind === "song" && kind === "song" &&
       $("#song-name").value.trim() === row.dataset.name);
@@ -448,7 +454,7 @@ function renderTransport() {
   }
   for (const module of document.querySelectorAll("[data-module]")) {
     const focused = (module.dataset.module === "pattern" && state.focus === "pattern") ||
-      (module.dataset.module === "library" && state.focus === "song");
+      (module.dataset.module === "song" && state.focus === "song");
     module.classList.toggle("transport-focus", focused);
   }
 }
@@ -599,7 +605,10 @@ async function refreshState() {
   renderLibrary();
   arranger.render();
   renderTransport();
-  if (state.server.connection?.connected && !state.server.connection.simulated) padPanel.readProject();
+  if (state.server.connection?.connected && !state.server.connection.simulated) {
+    if (state.view === "device") padPanel.loadMap();
+    else padPanel.readProject();
+  }
   packList.refresh();
   renderTrackOptions();
 }
@@ -641,12 +650,23 @@ function enableSound(on) {
 }
 
 function renderLibrary() {
-  const box = $("#library");
+  for (const box of document.querySelectorAll(".pattern-list")) renderPatternList(box);
+  renderSongs();
+}
+
+/** One saved-pattern list: open, play, add to the song, delete. Shown in Beat and Song. */
+function renderPatternList(box) {
   box.replaceChildren();
-  const { patterns } = state.server.library;
+  const filter = (box.parentElement.querySelector(".pattern-filter")?.value || "").trim().toLowerCase();
+  const all = state.server.library.patterns;
+  const patterns = filter ? all.filter((pattern) => pattern.name.toLowerCase().includes(filter)) : all;
+  if (all.length && !patterns.length) {
+    box.append(element("div", "library-empty", `No patterns match '${filter}'.`));
+    return;
+  }
   if (!patterns.length) {
     box.append(element("div", "library-empty", "No patterns yet. Name one in the editor and press Save."));
-    return renderSongs();
+    return;
   }
   for (const pattern of patterns) {
     const row = element("div", "library-item");
@@ -654,7 +674,10 @@ function renderLibrary() {
     row.dataset.kind = "pattern";
     makeDraggable(row, pattern.name);
     if (pattern.name === editor.name) row.classList.add("current");
-    const name = button("library-name", pattern.name, "Open in the editor", () => loadPattern(pattern.name, pattern.text));
+    const name = button("library-name", pattern.name, "Open in the pattern editor", () => {
+      loadPattern(pattern.name, pattern.text);
+      setView("beat");
+    });
     const bars = pattern.beats ? `${+(pattern.beats / 4).toFixed(2)} bar${pattern.beats === 4 ? "" : "s"}` : "error";
     row.append(name, element("span", "library-meta", pattern.error ? "doesn't parse" : `${bars} · ${pattern.bpm}`));
     row.append(
@@ -664,7 +687,6 @@ function renderLibrary() {
     );
     box.append(row);
   }
-  renderSongs();
 }
 
 /** The arranger's song picker: every saved song, with the open one selected. */
@@ -768,12 +790,75 @@ function addActivity(event) {
   if (detail && detail !== patternText) item.append(element("div", "activity-detail", String(detail)));
   if (patternText) {
     item.append(element("div", "activity-detail", patternText.trim().split("\n").slice(0, 4).join("\n")));
-    item.append(button("link-btn", "Open in editor", null, () => loadPattern(args.name || "", patternText)));
+    item.append(button("link-btn", "Open in editor", null, () => {
+      loadPattern(args.name || "", patternText);
+      setView("beat");
+    }));
   }
   const result = event.error || event.result;
   if (result) item.append(element("div", "activity-result", result));
   box.prepend(item);
   while (box.children.length > ACTIVITY_LIMIT) box.lastChild.remove();
+  if ($("#log-drawer").hidden) {
+    state.unread += 1;
+    $("#log-count").textContent = String(Math.min(state.unread, 99));
+    $("#log-count").hidden = false;
+  }
+}
+
+function toggleLog(open = $("#log-drawer").hidden) {
+  $("#log-drawer").hidden = !open;
+  $("#log-btn").setAttribute("aria-pressed", String(open));
+  if (open) {
+    state.unread = 0;
+    $("#log-count").hidden = true;
+  }
+}
+
+// -- views --------------------------------------------------------------------------
+
+const layouts = {};
+
+/** Show one view: beat, song, sounds or device. Remembered, and linked from the address (#song). */
+function setView(view) {
+  if (!VIEWS.includes(view)) view = "beat";
+  state.view = view;
+  for (const main of document.querySelectorAll("main.view")) main.hidden = main.dataset.view !== view;
+  for (const tab of document.querySelectorAll(".view-tab")) {
+    tab.classList.toggle("active", tab.dataset.view === view);
+    tab.setAttribute("aria-selected", String(tab.dataset.view === view));
+  }
+  layouts[view]?.show();
+  if (VIEW_FOCUS[view]) setFocus(VIEW_FOCUS[view]);
+  if (view === "device" && state.server?.connection?.connected && !state.server.connection.simulated) padPanel.loadMap();
+  if (location.hash !== `#${view}`) history.replaceState(null, "", `#${view}`);
+  try {
+    localStorage.setItem(VIEW_STORAGE_KEY, view);
+  } catch {
+    // Not remembered; the address still says which view.
+  }
+}
+
+function startViews() {
+  for (const input of document.querySelectorAll(".pattern-filter")) {
+    input.addEventListener("input", () => renderPatternList(input.parentElement.querySelector(".pattern-list")));
+  }
+  for (const main of document.querySelectorAll("main.view")) {
+    const view = main.dataset.view;
+    layouts[view] = new LayoutEditor({ page: main, bar: $("#layout-bar"), toggle: $("#layout-btn"),
+                                       key: `koii.layout.v2.${view}`, isActive: () => state.view === view });
+  }
+  for (const tab of document.querySelectorAll(".view-tab")) tab.addEventListener("click", () => setView(tab.dataset.view));
+  window.addEventListener("hashchange", () => setView(location.hash.slice(1)));
+  $("#log-btn").addEventListener("click", () => toggleLog());
+  $("#log-close").addEventListener("click", () => toggleLog(false));
+  let remembered = null;
+  try {
+    remembered = localStorage.getItem(VIEW_STORAGE_KEY);
+  } catch {
+    remembered = null;
+  }
+  setView(location.hash.slice(1) || remembered || "beat");
 }
 
 // -- controls ---------------------------------------------------------------------
@@ -892,7 +977,7 @@ function bindControls() {
   const focusFrom = (event) => {
     const module = event.target.closest?.("[data-module]")?.dataset.module;
     if (module === "pattern") setFocus("pattern");
-    else if (module === "library") setFocus("song");
+    else if (module === "song") setFocus("song");
   };
   document.addEventListener("pointerdown", focusFrom, true);
   document.addEventListener("focusin", focusFrom);
@@ -906,12 +991,12 @@ function bindControls() {
 
   document.addEventListener("keydown", (event) => {
     const typing = event.target.closest("input, textarea, select");
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && !typing) {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && !typing && state.view === "beat") {
       event.preventDefault();
       return event.shiftKey ? redo() : undo();
     }
     if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
-    if (event.code === "Space") {
+    if (event.code === "Space" && state.view !== "sounds") {
       event.preventDefault();
       return togglePlay();
     }
@@ -1013,7 +1098,7 @@ function trackTopBarHeight() {
 function start() {
   trackTopBarHeight();
   renderTransport();
-  new LayoutEditor({ page: $(".layout"), bar: $("#layout-bar"), toggle: $("#layout-btn") });
+  startViews();
   setupKey();
   renderBrushes();
   bindControls();

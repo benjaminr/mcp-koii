@@ -286,7 +286,7 @@ export class Arranger {
     const total = this.timing.reduce((sum, entry) => sum + (entry.seconds || 0), 0);
     const grid = element("div", "arr-grid");
     const widths = this.timing.map((entry) => (entry.seconds ? Math.max(0.6, (entry.seconds / (total || 1)) * this.sections.length) : 1));
-    grid.style.gridTemplateColumns = `minmax(130px, 170px) ${widths.map((width) => `minmax(76px, ${width.toFixed(3)}fr)`).join(" ")} 44px`;
+    grid.style.gridTemplateColumns = `minmax(150px, 210px) ${widths.map((width) => `minmax(76px, ${width.toFixed(3)}fr)`).join(" ")} 44px`;
 
     grid.append(this._corner(total));
     this.sections.forEach((section, column) => grid.append(this._sectionHead(section, column)));

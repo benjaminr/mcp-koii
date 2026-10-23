@@ -71,7 +71,8 @@ class Studio:
         self.player = Player(self._send, notify=self.events.publish)
         self.samples = DeviceLibrary(self.events, self.library.home)
         self.designer = SoundDesigner(self.events, self.library.home, self.samples)
-        self.pads = PadEditor(self.events, self.library.home, self.samples.client)   # one file client, one lock
+        self.pads = PadEditor(self.events, self.library.home, self.samples.client,   # one file client, one lock
+                              names=lambda: {sound.slot: sound.name for sound in self.samples.sounds()})
         self.packs = PackStore(self.events, self.library.home, self.samples, self.pads,
                                save_pattern=self.save_pattern, save_song=self.save_song,
                                upload_design=self._upload_design)

@@ -108,9 +108,10 @@ export class SoundDesigner {
     });
   }
 
+  /** True if that designer tab is on screen (its view is showing and it's scrolled into view). */
   visible(tab) {
-    return !$(`designer-page-${tab}`).hidden && $("designer-page-design").closest("section").getBoundingClientRect().top
-      < window.innerHeight;
+    const page = $(`designer-page-${tab}`);
+    return !page.hidden && page.offsetParent !== null && page.closest("section").getBoundingClientRect().top < window.innerHeight;
   }
 
   showTab(name) {

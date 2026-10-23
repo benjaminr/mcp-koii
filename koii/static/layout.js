@@ -52,9 +52,9 @@ function emptyLayout() {
   return { order: [], modules: {}, regions: {}, splits: {} };
 }
 
-function loadLayout() {
+function loadLayout(key) {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const saved = JSON.parse(localStorage.getItem(key));
     return saved && typeof saved === "object" ? { ...emptyLayout(), ...saved } : emptyLayout();
   } catch {
     return emptyLayout();
@@ -65,13 +65,17 @@ export class LayoutEditor {
   /**
    * page: the element whose children are the modules ([data-module], with data-span for the
    * default width). bar: the bar shown while editing. toggle: the button that starts editing.
+   * Each view has its own editor: key is where its layout is kept, and isActive() says whether
+   * it's the view on screen (reset and the hidden list only act on that one).
    */
-  constructor({ page, bar, toggle }) {
+  constructor({ page, bar, toggle, key = STORAGE_KEY, isActive = () => true }) {
     this.page = page;
     this.bar = bar;
     this.toggle = toggle;
+    this.key = key;
+    this.isActive = isActive;
     this.editing = false;
-    this.saved = loadLayout();
+    this.saved = loadLayout(key);
     this.modules = [...page.querySelectorAll(":scope > [data-module]")];
     this.defaults = new Map(this.modules.map((module, index) => [module.dataset.module, {
       order: index, span: Number(module.dataset.span) || COLUMNS,
@@ -91,7 +95,9 @@ export class LayoutEditor {
 
     toggle.addEventListener("click", () => this.setEditing(!this.editing));
     bar.querySelector("[data-layout=done]").addEventListener("click", () => this.setEditing(false));
-    bar.querySelector("[data-layout=reset]").addEventListener("click", () => this.reset());
+    bar.querySelector("[data-layout=reset]").addEventListener("click", () => {
+      if (this.isActive()) this.reset();
+    });
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && this.editing) this.setEditing(false);
     });
@@ -213,7 +219,7 @@ export class LayoutEditor {
 
   _save() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.saved));
+      localStorage.setItem(this.key, JSON.stringify(this.saved));
     } catch {
       // Private windows can refuse storage; the layout still works until the page reloads.
     }
@@ -452,7 +458,13 @@ export class LayoutEditor {
 
   // -- what's hidden ---------------------------------------------------------------------
 
+  /** The view has just come on screen: measure it again and show its hidden list. */
+  show() {
+    this.apply();
+  }
+
   _renderHidden() {
+    if (!this.isActive()) return;
     const list = this.bar.querySelector("[data-layout=hidden]");
     list.replaceChildren();
     for (const module of this.modules) {

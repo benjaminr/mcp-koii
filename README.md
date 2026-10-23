@@ -56,6 +56,21 @@ The server also runs a live page at **http://127.0.0.1:8133** (ask Claude to `op
 It shows everything that happens, whoever does it: Claude's tool calls, your edits, and
 pads you press on the device.
 
+It has four views, one per job, switched from the top bar (and linked: `#beat`, `#song`,
+`#sounds`, `#device`):
+
+| View | For | What's in it |
+|------|-----|--------------|
+| **Beat** | making a pattern | the device simulator and keyboard, the pattern editor, the pattern list |
+| **Song** | arranging | the song picker and arranger grid, the pattern list to drag from |
+| **Sounds** | making sounds | the sound designer, sampler and kit maker |
+| **Device** | what's on the EP-133 | the open project and all 48 of its pads (click one to change it), packs, the sample library and backups |
+
+The top bar (transport, now playing, connection) and the live strip are always there, and
+the log opens as a drawer. Space plays what the view is about: the pattern in Beat, the
+song in Song, the sound being designed in Sounds. Each view's layout is arranged and kept
+separately.
+
 - **KO II simulator:** pads light as notes play (orange) and when you press them on the
   device (blue); the display shows bar and beat. Click a pad to hear it.
 - **Pattern editor** with three views of the same pattern:

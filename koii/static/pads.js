@@ -7,6 +7,9 @@ import { command } from "./api.js";
 const GROUPS = ["A", "B", "C", "D"];
 const KEYS = [".", "0", "Enter", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 const READ_DELAY_MS = 350;   // clicking pads quickly reads only the last one
+// Each group drawn like the EP-133's keypad, top row first.
+const KEYPAD_ROWS = [["7", "8", "9"], ["4", "5", "6"], ["1", "2", "3"], [".", "0", "Enter"]];
+const MODE_MARK = { key: "K", legato: "L" };
 
 const $ = (id) => document.getElementById(id);
 
@@ -16,6 +19,7 @@ export class PadPanel {
     this.toast = toast;
     this.run = run;
     this.current = null;   // the selected pad's settings as last read from the device
+    this.pads = new Map(); // every pad's settings, for the map
     const select = $("pad-select");
     for (const group of GROUPS) {
       const options = document.createElement("optgroup");
@@ -36,6 +40,65 @@ export class PadPanel {
     $("pad-level").addEventListener("input", () => { $("pad-level-value").textContent = $("pad-level").value; });
   }
 
+  /** Read all 48 pads of the open project and draw the map. */
+  async loadMap() {
+    try {
+      const result = await command("pads", {});
+      this.pads = new Map(result.pads.map((pad) => [pad.pad, pad]));
+      $("project-select").value = String(result.project);
+      this.drawMap();
+    } catch (error) {
+      $("pad-grid").replaceChildren(Object.assign(document.createElement("p"), {
+        className: "hint", textContent: `Couldn't read the pads: ${error.message}`,
+      }));
+    }
+  }
+
+  drawMap() {
+    const selected = $("pad-select").value;
+    const groups = GROUPS.map((group) => {
+      const box = document.createElement("div");
+      box.className = "pad-map-group";
+      const title = document.createElement("div");
+      title.className = "pad-map-title";
+      title.textContent = group;
+      box.append(title);
+      for (const row of KEYPAD_ROWS) {
+        for (const key of row) box.append(this.mapCell(`${group}${key}`, selected));
+      }
+      return box;
+    });
+    $("pad-grid").replaceChildren(...groups);
+  }
+
+  mapCell(label, selected) {
+    const pad = this.pads.get(label) || { pad: label };
+    const cell = document.createElement("button");
+    cell.type = "button";
+    cell.className = `pad-map-cell${pad.sound ? "" : " empty"}${label === selected ? " selected" : ""}${pad.channel ? " pitched" : ""}`;
+    const key = label.slice(1) === "Enter" ? "ENT" : label.slice(1);
+    const name = pad.sound ? (pad.name || `slot ${pad.sound}`) : "empty";
+    cell.title = pad.sound
+      ? `${label}: ${name} (slot ${pad.sound})${pad.channel ? `, channel ${pad.channel}` : ""}, ${pad.mode}, level ${pad.level}`
+      : `${label}: empty`;
+    const top = document.createElement("span");
+    top.className = "pad-map-key num";
+    top.textContent = key;
+    const tags = document.createElement("span");
+    tags.className = "pad-map-tags num";
+    tags.textContent = [pad.channel ? `ch${pad.channel}` : "", MODE_MARK[pad.mode] || ""].filter(Boolean).join(" ");
+    const sound = document.createElement("span");
+    sound.className = "pad-map-name";
+    sound.textContent = name;
+    cell.append(top, tags, sound);
+    cell.addEventListener("click", () => {
+      $("pad-select").value = label;
+      if (this.pads.has(label)) this.show(this.pads.get(label));
+      this.read();
+    });
+    return cell;
+  }
+
   /** Show which project is open on the device (quietly: the device may not be connected yet). */
   async readProject() {
     try {
@@ -52,6 +115,7 @@ export class PadPanel {
       const result = await this.run("project_open", { project });
       this.toast(result.message);
       this.current = null;
+      await this.loadMap();
       await this.read();
     } catch (error) {
       this.status(`project not changed: ${error.message}`, true);
@@ -79,6 +143,10 @@ export class PadPanel {
 
   show(settings, project) {
     this.current = settings;
+    if (settings?.pad) {
+      this.pads.set(settings.pad, { ...this.pads.get(settings.pad), ...settings });
+      this.drawMap();
+    }
     $("pad-sound").value = settings.sound ?? "";
     $("pad-channel").value = settings.channel ? String(settings.channel) : "none";
     $("pad-mode").value = settings.mode ?? "oneshot";
@@ -136,6 +204,7 @@ export class PadPanel {
   onEvent(event) {
     if (event.type === "project") {
       $("project-select").value = String(event.project);
+      this.loadMap();
       return;
     }
     if (event.pad === $("pad-select").value) this.show(event.settings, event.project);

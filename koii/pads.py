@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from koii.events import EventBus
 from koii.files import PROJECTS_NODE, DeviceFiles, Rejected
@@ -156,10 +156,13 @@ def changes_for(settings: Dict[str, Any], current: Dict[str, Any], sound_frames:
 
 
 class PadEditor:
-    def __init__(self, events: EventBus, home: Path, client: Optional[DeviceFiles] = None):
+    def __init__(self, events: EventBus, home: Path, client: Optional[DeviceFiles] = None,
+                 names: Optional[Callable[[], Dict[int, str]]] = None):
+        """names() gives the sample names by slot, so pads can say what they play."""
         self.events = events
         self.history_path = home / "pad-changes.json"
         self.client = client or DeviceFiles()
+        self.names = names or (lambda: {})
 
     # -- reading ----------------------------------------------------------------------
 
@@ -198,6 +201,9 @@ class PadEditor:
         with self.client.session("pads: read") as session:
             project = _active_project(session)
             settings = [describe(each, session.metadata(each.node(project))) for each in pads]
+        names = self.names()
+        for each in settings:
+            each["name"] = names.get(each["sound"]) if each["sound"] else None
         return {"project": project, "pads": settings}
 
     # -- changing -----------------------------------------------------------------------

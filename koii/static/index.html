@@ -19,13 +19,17 @@
       </span>
     </div>
 
+    <nav class="views" role="tablist" aria-label="Views">
+      <button class="view-tab" type="button" role="tab" data-view="beat" title="Make a pattern: device, pattern editor, pattern list">beat</button>
+      <button class="view-tab" type="button" role="tab" data-view="song" title="Arrange patterns into a song">song</button>
+      <button class="view-tab" type="button" role="tab" data-view="sounds" title="Design, sample and build kits of new sounds">sounds</button>
+      <button class="view-tab" type="button" role="tab" data-view="device" title="What's on the EP-133: projects, pads, packs, samples">device</button>
+    </nav>
+
     <div class="transport">
       <button id="play-btn" class="btn primary transport-play" type="button" title="Play the editor pattern (Space)">▶ play pattern</button>
       <button id="loop-btn" class="btn toggle" type="button" aria-pressed="false" title="Loop whatever plays next, until stopped (L)"><span class="led"></span>loop</button>
       <button id="stop-btn" class="btn" type="button" title="Stop (Esc)">■ stop</button>
-      <label class="btn toggle switch" title="While the editor pattern loops, each edit switches in at the end of the current pass">
-        <input type="checkbox" id="live-toggle"><span class="led"></span>live edit
-      </label>
     </div>
 
     <div class="now-playing" id="now-playing">
@@ -40,8 +44,9 @@
       </button>
       <div id="connection-menu" class="menu" role="menu" hidden></div>
     </div>
-    <button id="sound-btn" class="btn toggle" type="button" title="Play sounds in this browser (simulator voices)"><span class="led"></span>browser sound</button>
-    <button id="layout-btn" class="btn toggle" type="button" aria-pressed="false" title="Move, resize and hide the modules"><span class="led"></span>layout</button>
+    <button id="sound-btn" class="btn toggle small" type="button" title="Play sounds in this browser (simulator voices)"><span class="led"></span>browser sound</button>
+    <button id="log-btn" class="btn toggle small" type="button" aria-pressed="false" title="What you, Claude and the device did"><span class="led"></span>log<span id="log-count" class="log-count num" hidden></span></button>
+    <button id="layout-btn" class="btn toggle small" type="button" aria-pressed="false" title="Move, resize and hide the modules"><span class="led"></span>layout</button>
     <div class="live-strip">
       <button id="strip-toggle" class="strip-toggle" type="button" aria-pressed="false" title="What the EP-133 is playing, live. Click to start or stop listening (nothing is played back)">
         <span class="strip-tag">in</span>
@@ -62,7 +67,7 @@
     </div>
   </header>
 
-  <main class="layout">
+  <main class="layout view" data-view="beat" aria-label="Beat: make a pattern">
     <section class="module device-panel" data-module="device" data-span="4" aria-label="Device">
       <h2 class="module-head"><span class="module-index">01</span>device</h2>
       <div class="module-parts" data-regions="device">
@@ -71,29 +76,9 @@
           <div class="caption">pitched notes · midi channels</div>
           <div id="keys"></div>
         </div>
-        <div class="pad-panel" data-region="pads" data-region-label="pad settings">
-          <div class="caption">pad settings · on the EP-133, live · click a pad above to pick it</div>
-          <div class="pad-form">
-            <label class="pad-field"><span class="setting-name">project</span>
-              <select id="project-select" aria-label="Project open on the EP-133" title="Open another project on the EP-133 (6–9 start empty)"></select></label>
-            <select id="pad-select" class="pad-select" aria-label="Pad"></select>
-            <button id="pad-read" class="btn ghost small" type="button" title="Read this pad's settings from the device">read</button>
-            <label class="pad-field"><span class="setting-name">sound</span>
-              <input id="pad-sound" class="slot-input num" type="number" min="1" max="999" placeholder="slot" aria-label="Sound slot"></label>
-            <label class="pad-field"><span class="setting-name">channel</span><select id="pad-channel" aria-label="MIDI channel"></select></label>
-            <label class="pad-field"><span class="setting-name">mode</span>
-              <select id="pad-mode" aria-label="Play mode"><option value="oneshot">oneshot</option><option value="key">key</option><option value="legato">legato</option></select></label>
-            <label class="pad-field pad-level"><span class="setting-name">level</span>
-              <input id="pad-level" type="range" min="0" max="100" value="100" aria-label="Level"><span id="pad-level-value" class="num">100</span></label>
-            <button id="pad-apply" class="btn small" type="button" title="Write the changed settings to the pad">apply</button>
-            <button id="pad-undo" class="btn ghost small" type="button" title="Put back the last pad change">undo</button>
-          </div>
-          <div id="pad-status" class="pad-status"></div>
-        </div>
         <p class="hint" data-region="hint" data-region-label="hint">Pads light <b class="swatch play"></b> for notes sent and <b class="swatch press"></b> when you press them on the device. Click a pad to hear it.</p>
       </div>
     </section>
-
     <section class="module editor-panel" data-module="pattern" data-span="5" aria-label="Pattern editor">
       <h2 class="module-head"><span class="module-index">02</span>pattern</h2>
       <div class="editor-head">
@@ -119,6 +104,9 @@
             <option value="1/4">1/4</option><option value="1/8">1/8</option><option value="1/16">1/16</option>
             <option value="1/32">1/32</option><option value="1/8t">1/8 triplets</option><option value="1/16t">1/16 triplets</option>
           </select>
+        </label>
+        <label class="btn toggle switch small" title="While the pattern loops, each edit switches in at the end of the current pass">
+          <input type="checkbox" id="live-toggle"><span class="led"></span>live edit
         </label>
         <span class="bars"><span class="setting-name">bars</span>
           <button id="bar-minus" class="btn ghost small" type="button" title="Remove the last bar">−</button>
@@ -150,81 +138,48 @@
 
       <div id="issues" class="issues" aria-live="polite"></div>
     </section>
-
-    <section class="module" data-module="log" data-span="3" data-fill aria-label="Activity log">
-      <h2 class="module-head"><span class="module-index">03</span>log</h2>
-      <div id="activity" class="activity" data-grow></div>
+    <section class="module" data-module="patterns" data-span="3" aria-label="Patterns">
+      <h2 class="module-head"><span class="module-index">03</span>patterns</h2>
+      <input class="name-input small pattern-filter" type="search" placeholder="filter: deep, kr-, bass…" spellcheck="false" aria-label="Filter patterns">
+      <div class="library pattern-list"></div>
+      <div class="caption pattern-caption">click to open · <b>+</b> adds one to the song · drag into the arranger</div>
     </section>
+  </main>
 
-    <section class="module" data-module="library" data-span="12" aria-label="Library and arranger">
-      <h2 class="module-head"><span class="module-index">04</span>library · arrange</h2>
-      <div class="library-body" data-regions="library" data-split="library">
-        <div class="library-saved" data-region="saved" data-region-label="saved">
-          <div class="caption">patterns · drag into the arranger, or press <b>+</b></div>
-          <div id="library" class="library"></div>
+  <main class="layout view" data-view="song" aria-label="Song: arrange patterns" hidden>
+    <section class="module" data-module="patterns" data-span="3" aria-label="Patterns">
+      <h2 class="module-head"><span class="module-index">01</span>patterns</h2>
+      <input class="name-input small pattern-filter" type="search" placeholder="filter: deep, kr-, bass…" spellcheck="false" aria-label="Filter patterns">
+      <div class="library pattern-list"></div>
+      <div class="caption pattern-caption">click to open · <b>+</b> adds one to the song · drag into the arranger</div>
+    </section>
+    <section class="module" data-module="song" data-span="9" aria-label="Song">
+      <h2 class="module-head"><span class="module-index">02</span>song</h2>
+      <div class="arrange">
+        <div class="song-bar">
+          <select id="song-select" class="song-select" aria-label="Open a saved song"></select>
+          <input id="song-name" class="name-input small" placeholder="song name" spellcheck="false" aria-label="Song name">
+          <button id="song-save" class="btn" type="button" title="Save the arrangement under this name">save</button>
+          <button id="song-delete" class="btn ghost" type="button" title="Delete this song from the library" hidden>delete</button>
+          <button id="arr-clear" class="btn ghost" type="button" title="Start a new, empty song">new</button>
         </div>
-        <div class="arrange" data-region="arrange" data-region-label="arrange">
-          <div class="song-bar">
-            <select id="song-select" class="song-select" aria-label="Open a saved song"></select>
-            <input id="song-name" class="name-input small" placeholder="song name" spellcheck="false" aria-label="Song name">
-            <button id="song-save" class="btn" type="button" title="Save the arrangement under this name">save</button>
-            <button id="song-delete" class="btn ghost" type="button" title="Delete this song from the library" hidden>delete</button>
-            <button id="arr-clear" class="btn ghost" type="button" title="Start a new, empty song">new</button>
-          </div>
-          <div class="caption">arrange · light cells in a column to layer patterns, add columns to play them in turn</div>
-          <div id="arranger" class="arranger"></div>
-          <div id="arrangement-issues" class="issues small"></div>
-          <div class="row arrange-controls">
-            <button id="arr-play" class="btn primary transport-play" type="button" title="Play the song, or stop it">▶ play song</button>
-            <button id="arr-loop" class="btn toggle" type="button" aria-pressed="false" title="Loop whatever plays next, until stopped (L)"><span class="led"></span>loop</button>
-          </div>
-          <label class="arrangement-label"><span class="caption">as text</span>
-            <textarea id="arrangement" class="arrangement" placeholder="intro x2, verse x4, verse+bass x4, chorus x8" spellcheck="false" aria-label="Arrangement as text"></textarea>
-          </label>
+        <div class="caption">arrange · light cells in a column to layer patterns, add columns to play them in turn</div>
+        <div id="arranger" class="arranger"></div>
+        <div id="arrangement-issues" class="issues small"></div>
+        <div class="row arrange-controls">
+          <button id="arr-play" class="btn primary transport-play" type="button" title="Play the song, or stop it">▶ play song</button>
+          <button id="arr-loop" class="btn toggle" type="button" aria-pressed="false" title="Loop whatever plays next, until stopped (L)"><span class="led"></span>loop</button>
         </div>
+        <label class="arrangement-label"><span class="caption">as text</span>
+          <textarea id="arrangement" class="arrangement" placeholder="intro x2, verse x4, verse+bass x4, chorus x8" spellcheck="false" aria-label="Arrangement as text"></textarea>
+        </label>
       </div>
     </section>
-    <section class="module samples-panel" data-module="samples" data-span="12" aria-label="Samples">
-      <h2 class="module-head"><span class="module-index">05</span>samples</h2>
-      <div class="pack-area">
-        <div class="caption">packs · demos and kits: samples, pads, patterns and songs in one go · remove them to free space</div>
-        <div id="pack-list" class="pack-list"></div>
-        <div id="pack-progress" class="backup-progress" hidden>
-          <div class="np-bar"><div id="pack-fill" class="np-fill"></div></div>
-          <span id="pack-text" class="backup-text"></span>
-        </div>
-      </div>
-      <div class="samples-head">
-        <button id="samples-load" class="btn" type="button" title="Read the sample library from the device">read library</button>
-        <input id="samples-search" class="name-input small" placeholder="search names or slots" spellcheck="false" aria-label="Search samples">
-        <span id="samples-summary" class="num samples-summary"></span>
-        <span class="memory">
-          <span class="memory-bar"><span id="memory-fill" class="memory-fill"></span></span>
-          <span id="memory-label" class="num memory-label"></span>
-        </span>
-        <button id="backup-btn" class="btn" type="button" title="Copy every sample and project to ~/.koii/backups (read-only on the device)">back up device</button>
-        <button id="backup-cancel" class="btn ghost" type="button" hidden>cancel</button>
-      </div>
-      <div id="backup-progress" class="backup-progress" hidden>
-        <div class="np-bar"><div id="backup-fill" class="np-fill"></div></div>
-        <span id="backup-text" class="backup-text"></span>
-      </div>
-      <div class="samples-body" data-split="samples">
-        <div id="sample-list" class="sample-list"></div>
-        <div class="sample-detail">
-          <figure class="screen-panel"><figcaption id="sample-title">waveform</figcaption><canvas id="sample-wave"></canvas></figure>
-          <dl id="sample-meta" class="sample-facts"></dl>
-          <div class="row">
-            <button id="sample-play" class="btn primary" type="button">▶ play on device</button>
-            <a id="sample-download" class="btn ghost" title="Download as WAV">⤓ wav</a>
-          </div>
-        </div>
-      </div>
-      <p class="hint">Uses the EP-133's private file protocol, one session at a time. Close TE's EP Sample Tool while you use this.</p>
-    </section>
+  </main>
 
+  <main class="layout view" data-view="sounds" aria-label="Sounds: make new sounds" hidden>
     <section class="module designer-panel" data-module="design" data-span="12" aria-label="Sound design">
-      <h2 class="module-head"><span class="module-index">06</span>sound design</h2>
+      <h2 class="module-head"><span class="module-index">01</span>sound design</h2>
       <div class="designer-head">
         <select id="designer-start" class="designer-start" aria-label="Start from a preset or a saved design"></select>
         <input id="designer-name" class="name-input small" maxlength="40" placeholder="name" spellcheck="false" aria-label="Design name">
@@ -350,6 +305,77 @@
       </div>
     </section>
   </main>
+
+  <main class="layout view" data-view="device" aria-label="Device: what's on the EP-133" hidden>
+    <section class="module" data-module="pads" data-span="7" aria-label="Pads">
+      <h2 class="module-head"><span class="module-index">01</span>pads</h2>
+      <div class="caption">the open project's pads, live on the EP-133 · click one to change it</div>
+      <div id="pad-grid" class="pad-grid"></div>
+      <div class="pad-panel">
+        <div class="pad-form">
+          <label class="pad-field"><span class="setting-name">project</span>
+            <select id="project-select" aria-label="Project open on the EP-133" title="Open another project on the EP-133 (6–9 start empty)"></select></label>
+          <select id="pad-select" class="pad-select" aria-label="Pad"></select>
+          <button id="pad-read" class="btn ghost small" type="button" title="Read this pad's settings from the device">read</button>
+          <label class="pad-field"><span class="setting-name">sound</span>
+            <input id="pad-sound" class="slot-input num" type="number" min="1" max="999" placeholder="slot" aria-label="Sound slot"></label>
+          <label class="pad-field"><span class="setting-name">channel</span><select id="pad-channel" aria-label="MIDI channel"></select></label>
+          <label class="pad-field"><span class="setting-name">mode</span>
+            <select id="pad-mode" aria-label="Play mode"><option value="oneshot">oneshot</option><option value="key">key</option><option value="legato">legato</option></select></label>
+          <label class="pad-field pad-level"><span class="setting-name">level</span>
+            <input id="pad-level" type="range" min="0" max="100" value="100" aria-label="Level"><span id="pad-level-value" class="num">100</span></label>
+          <button id="pad-apply" class="btn small" type="button" title="Write the changed settings to the pad">apply</button>
+          <button id="pad-undo" class="btn ghost small" type="button" title="Put back the last pad change">undo</button>
+        </div>
+        <div id="pad-status" class="pad-status"></div>
+      </div>
+    </section>
+    <section class="module" data-module="packs" data-span="5" aria-label="Packs">
+      <h2 class="module-head"><span class="module-index">02</span>packs</h2>
+      <div class="caption">demos and kits: samples, pads, patterns and songs in one go · remove them to free space</div>
+      <div id="pack-list" class="pack-list"></div>
+      <div id="pack-progress" class="backup-progress" hidden>
+        <div class="np-bar"><div id="pack-fill" class="np-fill"></div></div>
+        <span id="pack-text" class="backup-text"></span>
+      </div>
+    </section>
+    <section class="module samples-panel" data-module="samples" data-span="12" aria-label="Samples">
+      <h2 class="module-head"><span class="module-index">03</span>samples</h2>
+      <div class="samples-head">
+        <button id="samples-load" class="btn" type="button" title="Read the sample library from the device">read library</button>
+        <input id="samples-search" class="name-input small" placeholder="search names or slots" spellcheck="false" aria-label="Search samples">
+        <span id="samples-summary" class="num samples-summary"></span>
+        <span class="memory">
+          <span class="memory-bar"><span id="memory-fill" class="memory-fill"></span></span>
+          <span id="memory-label" class="num memory-label"></span>
+        </span>
+        <button id="backup-btn" class="btn" type="button" title="Copy every sample and project to ~/.koii/backups (read-only on the device)">back up device</button>
+        <button id="backup-cancel" class="btn ghost" type="button" hidden>cancel</button>
+      </div>
+      <div id="backup-progress" class="backup-progress" hidden>
+        <div class="np-bar"><div id="backup-fill" class="np-fill"></div></div>
+        <span id="backup-text" class="backup-text"></span>
+      </div>
+      <div class="samples-body" data-split="samples">
+        <div id="sample-list" class="sample-list"></div>
+        <div class="sample-detail">
+          <figure class="screen-panel"><figcaption id="sample-title">waveform</figcaption><canvas id="sample-wave"></canvas></figure>
+          <dl id="sample-meta" class="sample-facts"></dl>
+          <div class="row">
+            <button id="sample-play" class="btn primary" type="button">▶ play on device</button>
+            <a id="sample-download" class="btn ghost" title="Download as WAV">⤓ wav</a>
+          </div>
+        </div>
+      </div>
+      <p class="hint">Uses the EP-133's private file protocol, one session at a time. Close TE's EP Sample Tool while you use this.</p>
+    </section>
+  </main>
+
+  <aside id="log-drawer" class="log-drawer" aria-label="Activity log" hidden>
+    <div class="log-drawer-head"><span>log · what you, Claude and the device did</span>
+      <button id="log-close" class="btn ghost small" type="button" aria-label="Close the log">✕</button></div>
+    <div id="activity" class="activity"></div>
+  </aside>
 
   <div id="toast" class="toast" role="status" hidden></div>
   <script type="module" src="app.js"></script>
