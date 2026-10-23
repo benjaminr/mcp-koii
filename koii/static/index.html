@@ -132,29 +132,35 @@
       <div id="issues" class="issues" aria-live="polite"></div>
     </section>
 
-    <section class="module" data-module="library" data-span="3" aria-label="Library and songs">
-      <h2 class="module-head"><span class="module-index">03</span>library</h2>
-      <div class="module-parts" data-regions="library">
-        <div data-region="saved" data-region-label="saved"><div id="library" class="library"></div></div>
-        <div class="arrange" data-region="arrange" data-region-label="arrange">
-          <div class="caption">arrange a song · <b>+</b> adds a pattern, a song's name opens it here</div>
-          <textarea id="arrangement" class="arrangement" placeholder="intro x2, verse x4, verse+bass x4, chorus x8" spellcheck="false" aria-label="Arrangement"></textarea>
-          <div id="arrangement-issues" class="issues small"></div>
-          <div id="timeline" class="timeline"></div>
-          <div class="row">
-            <button id="arr-play" class="btn" type="button">▶ play</button>
-            <button id="arr-loop" class="btn ghost" type="button">loop</button>
-            <input id="song-name" class="name-input small" placeholder="song name" spellcheck="false" aria-label="Song name">
-            <button id="song-save" class="btn ghost" type="button">save song</button>
-          </div>
-        </div>
-      </div>
-    </section>
     <section class="module" data-module="log" data-span="3" data-fill aria-label="Activity log">
-      <h2 class="module-head"><span class="module-index">04</span>log</h2>
+      <h2 class="module-head"><span class="module-index">03</span>log</h2>
       <div id="activity" class="activity" data-grow></div>
     </section>
 
+    <section class="module" data-module="library" data-span="12" aria-label="Library and arranger">
+      <h2 class="module-head"><span class="module-index">04</span>library · arrange</h2>
+      <div class="library-body" data-regions="library" data-split="library">
+        <div class="library-saved" data-region="saved" data-region-label="saved">
+          <div class="caption">saved · drag into the arranger, or press <b>+</b></div>
+          <div id="library" class="library"></div>
+        </div>
+        <div class="arrange" data-region="arrange" data-region-label="arrange">
+          <div class="caption">arrange · light cells in a column to layer patterns, add columns to play them in turn</div>
+          <div id="arranger" class="arranger"></div>
+          <div id="arrangement-issues" class="issues small"></div>
+          <div class="row arrange-controls">
+            <button id="arr-play" class="btn primary" type="button">▶ play</button>
+            <button id="arr-loop" class="btn" type="button">loop</button>
+            <input id="song-name" class="name-input small" placeholder="song name" spellcheck="false" aria-label="Song name">
+            <button id="song-save" class="btn" type="button">save song</button>
+            <button id="arr-clear" class="btn ghost" type="button" title="Start a new song">new</button>
+          </div>
+          <label class="arrangement-label"><span class="caption">as text</span>
+            <textarea id="arrangement" class="arrangement" placeholder="intro x2, verse x4, verse+bass x4, chorus x8" spellcheck="false" aria-label="Arrangement as text"></textarea>
+          </label>
+        </div>
+      </div>
+    </section>
     <section class="module samples-panel" data-module="samples" data-span="12" aria-label="Samples">
       <h2 class="module-head"><span class="module-index">05</span>samples</h2>
       <div class="samples-head">

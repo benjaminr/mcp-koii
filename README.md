@@ -66,9 +66,15 @@ pads you press on the device.
   - **Notation:** sheet music, with a drum staff and a bass or treble staff for pitched tracks.
 - **Loop building:** Play, Loop and Stop; turn on **Live edit** and every change switches
   in at the end of the current pass. Undo and redo (⌘Z / ⇧⌘Z); Space plays and stops.
-- **Library:** saved patterns and songs, to open, play, loop and delete, with the
-  arranger underneath: **+** on a pattern adds it to the song, a song's name opens it
-  there, and a timeline shows each section's length. Patterns download as `.mid` files.
+- **Library and arranger:** saved patterns and songs, to open, play, loop and delete,
+  beside a song grid. Rows are lanes (one per pattern) and columns are sections: light
+  several cells in a column to layer patterns, add columns to play them in turn, and set
+  each section's repeats with − / +. Columns are as wide as they play, so the song's
+  shape shows at a glance, and the playing section lights up. Drag patterns in from the
+  list (onto a cell, a section, or **+** for a new section), drag section headers to
+  reorder them, and move lanes up or down (the top lit lane sets a section's tempo). The
+  grid and the text form (`intro x2, verse+bass x4`) stay in step, so you can type too.
+  Patterns download as `.mid` files.
 - **Activity:** each MCP call Claude makes, with **Open in editor** for its patterns.
 - **Live strip:** the EP-133 is also a USB audio device, so a strip across the top bar
   shows what it actually plays: spectrum as LED columns, stereo meters with peak hold and

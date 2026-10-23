@@ -6,6 +6,7 @@ import { BrowserSynth } from "./audio.js";
 import { Device, Keys, noteName, noteToPad } from "./device.js";
 import { BRUSHES, Grid, renderKey } from "./grid.js";
 import { LayoutEditor } from "./layout.js";
+import { Arranger, makeDraggable } from "./arranger.js";
 import * as model from "./model.js";
 import { Notation } from "./notation.js";
 import { roleForName, roleForPad, roleForTrack } from "./roles.js";
@@ -35,7 +36,7 @@ const state = {
   loop: false,
   live: false,
   editorPlaying: false,  // the last thing played came from the editor
-  arrangementPreview: null,
+  arrangerPlaying: false,  // the arranger's song is what's playing, so it shows the playhead
   activity: [],
 };
 
@@ -96,6 +97,14 @@ const designer = new SoundDesigner({
     patterns: (state.server?.library.patterns || []).map((pattern) => pattern.name),
     songs: (state.server?.library.songs || []).map((song) => song.name),
   }),
+});
+const arranger = new Arranger($("#arranger"), {
+  getLibrary: () => state.server?.library,
+  onChange: (text) => {
+    $("#arrangement").value = text;
+    previewArrangement();
+  },
+  onAudition: (name) => playName(name, false),
 });
 const sound = new LiveStrip($("#strip-canvas"), (status) => {
   $("#strip-toggle").setAttribute("aria-pressed", String(status.listening));
@@ -336,6 +345,7 @@ async function playEditor() {
 async function playName(name, loop) {
   const wasEditor = state.editorPlaying;
   state.editorPlaying = false;
+  state.arrangerPlaying = false;
   try {
     await run("play", { what: name, loop });
   } catch {
@@ -378,7 +388,6 @@ function onEvent(event) {
       state.queued = null;
       device.setPlaying(true, event.loop ? "LOOP" : "PLAY");
       renderNowPlaying();
-      renderTimeline();
       return;
     case "queued":
       state.queued = event;
@@ -394,8 +403,9 @@ function onEvent(event) {
       device.setSub("stopped");
       grid.setPlayhead(null);
       notation.setPlayhead(null);
+      arranger.setPlayhead(null);
+      state.arrangerPlaying = false;
       renderNowPlaying();
-      renderTimeline();
       return;
     case "activity": return addActivity(event);
     case "backup": return samples.onBackup(event);
@@ -454,14 +464,13 @@ function frame() {
   requestAnimationFrame(frame);
   device.tick();
   const position = playbackPosition();
+  arranger.setPlayhead(position && state.arrangerPlaying ? position.elapsed : null);
   if (!position) return;
   const { section, beat, elapsed, total } = position;
   $("#np-fill").style.width = `${Math.min(100, (elapsed / total) * 100)}%`;
   const sixteenth = Math.floor((beat % 1) * 4 + 1e-6) + 1;
   device.setCounter(`${Math.floor(beat / 4) + 1}.${Math.floor(beat % 4) + 1}.${sixteenth}`);
   device.setBpm(section.bpm);
-  const playhead = document.querySelector(".timeline-playhead");
-  if (playhead) playhead.style.left = `${Math.min(100, (elapsed / total) * 100)}%`;
 
   const shown = section.patterns.find((p) => p.source === editor.text) ||
     (editor.name ? section.patterns.find((p) => p.name === editor.name) : null);
@@ -483,6 +492,7 @@ async function refreshState() {
   device.setKit(state.server.kit);
   renderConnection();
   renderLibrary();
+  arranger.render();
   renderTrackOptions();
 }
 
@@ -532,6 +542,7 @@ function renderLibrary() {
   }
   for (const pattern of patterns) {
     const row = element("div", "library-item");
+    makeDraggable(row, pattern.name);
     if (pattern.name === editor.name) row.classList.add("current");
     row.append(element("span", "library-kind", "pat"));
     const name = button("library-name", pattern.name, "Open in the editor", () => loadPattern(pattern.name, pattern.text));
@@ -540,23 +551,20 @@ function renderLibrary() {
     row.append(
       button("icon", "▶", "Play", () => playName(pattern.name, false)),
       button("icon", "⟳", "Loop", () => playName(pattern.name, true)),
-      button("icon", "+", "Add to the arrangement", () => appendToArrangement(pattern.name)),
+      button("icon", "+", "Add to the song as a new section", () => arranger.addSection([pattern.name])),
       deleteButton(pattern.name),
     );
     box.append(row);
   }
   for (const song of songs) {
     const row = element("div", "library-item");
+    makeDraggable(row, song.name);
     row.append(element("span", "library-kind", "song"));
-    row.append(button("library-name", song.name, `Open in the arranger: ${song.arrangement}`, () => {
-      $("#arrangement").value = song.arrangement;
-      $("#song-name").value = song.name;
-      previewArrangement();
-    }));
+    row.append(button("library-name", song.name, `Open in the arranger: ${song.arrangement}`, () => openSong(song)));
     row.append(element("span", "library-meta", song.bpm ? `${song.bpm}` : ""));
     row.append(
-      button("icon", "▶", "Play", () => playName(song.name, false)),
-      button("icon", "⟳", "Loop", () => playName(song.name, true)),
+      button("icon", "▶", "Open and play", () => openSong(song).then(() => playArrangement(false))),
+      button("icon", "⟳", "Open and loop", () => openSong(song).then(() => playArrangement(true))),
       deleteButton(song.name),
     );
     box.append(row);
@@ -594,56 +602,28 @@ function renderTrackOptions() {
   if (previous) select.value = previous;
 }
 
-function appendToArrangement(name) {
-  const area = $("#arrangement");
-  area.value = area.value.trim() ? `${area.value.trim()}, ${name}` : name;
+/** Open a saved song in the arranger. */
+async function openSong(song) {
+  $("#arrangement").value = song.arrangement;
+  $("#song-name").value = song.name;
+  arranger.setText(song.arrangement);
   previewArrangement();
 }
 
+/** Ask the server to check the arrangement; its issues show under the grid. */
 function previewArrangement() {
   clearTimeout(previewArrangement.timer);
   previewArrangement.timer = setTimeout(async () => {
     const arrangement = $("#arrangement").value.trim();
     const issues = $("#arrangement-issues");
     issues.replaceChildren();
-    if (!arrangement) {
-      state.arrangementPreview = null;
-      return renderTimeline();
-    }
+    if (!arrangement) return;
     try {
-      state.arrangementPreview = await command("arrangement", { arrangement });
+      await command("arrangement", { arrangement });
     } catch (error) {
-      state.arrangementPreview = null;
       issues.append(element("div", "issue", error.message));
     }
-    renderTimeline();
   }, ARRANGEMENT_DELAY_MS);
-}
-
-const SECTION_COLOURS = ["#ff5a1f", "#cdd1d0", "#4ba6e0", "#efb02e", "#ff4f8b", "#e9eae5", "#8e9497"];
-
-function colourFor(label) {
-  let hash = 0;
-  for (const character of label) hash = (hash * 31 + character.charCodeAt(0)) % SECTION_COLOURS.length;
-  return SECTION_COLOURS[hash];
-}
-
-/** The timeline shows what's playing (if it has sections), else the arrangement being edited. */
-function renderTimeline() {
-  const box = $("#timeline");
-  box.replaceChildren();
-  const playing = state.pass?.info;
-  const info = playing?.order?.length ? playing : state.arrangementPreview;
-  if (!info?.order?.length) return;
-  for (const index of info.order) {
-    const section = info.sections[index];
-    const block = element("div", "timeline-block", section.label);
-    block.style.width = `${(section.seconds / info.seconds) * 100}%`;
-    block.style.background = colourFor(section.label);
-    block.title = `${section.label}: ${section.beats} beats at ${section.bpm} BPM`;
-    box.append(block);
-  }
-  if (playing) box.append(element("div", "timeline-playhead"));
 }
 
 function renderNowPlaying() {
@@ -776,7 +756,16 @@ function bindControls() {
   $("#strip-toggle").addEventListener("click", toggleListening);
   // Choosing a source is a request to listen to it.
   $("#strip-source").addEventListener("change", startListening);
-  $("#arrangement").addEventListener("input", previewArrangement);
+  $("#arrangement").addEventListener("input", () => {
+    arranger.setText($("#arrangement").value);
+    previewArrangement();
+  });
+  $("#arr-clear").addEventListener("click", () => {
+    $("#arrangement").value = "";
+    $("#song-name").value = "";
+    arranger.clear();
+    $("#arrangement-issues").replaceChildren();
+  });
   $("#arr-play").addEventListener("click", () => playArrangement(false));
   $("#arr-loop").addEventListener("click", () => playArrangement(true));
   $("#song-save").addEventListener("click", async () => {
@@ -861,8 +850,9 @@ async function startListening() {
 
 async function playArrangement(loop) {
   const arrangement = $("#arrangement").value.trim();
-  if (!arrangement) return toast("Write an arrangement first, e.g. 'intro x2, verse x4'.", true);
+  if (!arrangement) return toast("Add a pattern to the arranger first: drag one in, or press + on it.", true);
   await playName(arrangement, loop);
+  state.arrangerPlaying = true;
 }
 
 // -- start ------------------------------------------------------------------------
