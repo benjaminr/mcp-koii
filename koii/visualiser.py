@@ -156,7 +156,7 @@ def _commands(studio: Studio) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
 
 def _designer_commands(studio: Studio, required: Callable[[Dict[str, Any], str], Any]
                        ) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
-    """The sound designer's commands (module 07 in the page)."""
+    """The sound designer's commands (module 06 in the page)."""
     designer = studio.designer
 
     def optional_slot(body: Dict[str, Any], key: str = "slot") -> Optional[int]:

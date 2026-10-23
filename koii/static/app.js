@@ -10,6 +10,7 @@ import * as model from "./model.js";
 import { Notation } from "./notation.js";
 import { roleForName, roleForPad, roleForTrack } from "./roles.js";
 import { SoundDesigner } from "./designer.js";
+import { pressedTwice } from "./design-controls.js";
 import { SampleBrowser } from "./samples.js";
 import { LiveStrip, permittedDeviceInput } from "./sound.js";
 
@@ -540,14 +541,14 @@ function renderLibrary() {
       button("icon", "▶", "Play", () => playName(pattern.name, false)),
       button("icon", "⟳", "Loop", () => playName(pattern.name, true)),
       button("icon", "+", "Add to the arrangement", () => appendToArrangement(pattern.name)),
-      button("icon", "✕", "Delete", () => deleteSaved(pattern.name)),
+      deleteButton(pattern.name),
     );
     box.append(row);
   }
   for (const song of songs) {
     const row = element("div", "library-item");
     row.append(element("span", "library-kind", "song"));
-    row.append(button("library-name", song.name, `Edit: ${song.arrangement}`, () => {
+    row.append(button("library-name", song.name, `Open in the arranger: ${song.arrangement}`, () => {
       $("#arrangement").value = song.arrangement;
       $("#song-name").value = song.name;
       previewArrangement();
@@ -556,15 +557,18 @@ function renderLibrary() {
     row.append(
       button("icon", "▶", "Play", () => playName(song.name, false)),
       button("icon", "⟳", "Loop", () => playName(song.name, true)),
-      button("icon", "✕", "Delete", () => deleteSaved(song.name)),
+      deleteButton(song.name),
     );
     box.append(row);
   }
 }
 
-async function deleteSaved(name) {
-  if (!confirm(`Delete '${name}' from the library?`)) return;
-  await run("delete", { name }).then(toast).catch(() => {});
+/** ✕ asks "delete?" first; a second press within a few seconds deletes. */
+function deleteButton(name) {
+  const node = button("icon", "✕", `Delete '${name}' from the library`, () => {
+    if (pressedTwice(node, "delete?")) run("delete", { name }).then(toast).catch(() => {});
+  });
+  return node;
 }
 
 function renderTrackOptions() {

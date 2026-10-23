@@ -1,7 +1,7 @@
 # Sound design
 
 koii has a small synthesiser and sampler built for the EP-133. Designs are JSON. The
-same engine renders them for Claude (over MCP), for the visualiser's designer (module 07)
+same engine renders them for Claude (over MCP), for the visualiser's designer (module 06)
 and for upload, so what you hear in the browser is what goes on the device.
 
 Every sound renders at the device's own rate (46,875 Hz, 16-bit) and is normalised.

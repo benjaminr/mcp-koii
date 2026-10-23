@@ -132,29 +132,31 @@
       <div id="issues" class="issues" aria-live="polite"></div>
     </section>
 
-    <section class="module" data-module="library" data-span="3" aria-label="Library">
+    <section class="module" data-module="library" data-span="3" aria-label="Library and songs">
       <h2 class="module-head"><span class="module-index">03</span>library</h2>
-      <div id="library" class="library"></div>
-    </section>
-    <section class="module" data-module="arrange" data-span="3" aria-label="Arrangement">
-      <h2 class="module-head"><span class="module-index">04</span>arrange</h2>
-      <textarea id="arrangement" class="arrangement" placeholder="intro x2, verse x4, verse+bass x4, chorus x8" spellcheck="false"></textarea>
-      <div class="row">
-        <button id="arr-play" class="btn" type="button">▶ play</button>
-        <button id="arr-loop" class="btn ghost" type="button">loop</button>
-        <input id="song-name" class="name-input small" placeholder="song name" spellcheck="false" aria-label="Song name">
-        <button id="song-save" class="btn ghost" type="button">save song</button>
+      <div class="module-parts" data-regions="library">
+        <div data-region="saved" data-region-label="saved"><div id="library" class="library"></div></div>
+        <div class="arrange" data-region="arrange" data-region-label="arrange">
+          <div class="caption">arrange a song · <b>+</b> adds a pattern, a song's name opens it here</div>
+          <textarea id="arrangement" class="arrangement" placeholder="intro x2, verse x4, verse+bass x4, chorus x8" spellcheck="false" aria-label="Arrangement"></textarea>
+          <div id="arrangement-issues" class="issues small"></div>
+          <div id="timeline" class="timeline"></div>
+          <div class="row">
+            <button id="arr-play" class="btn" type="button">▶ play</button>
+            <button id="arr-loop" class="btn ghost" type="button">loop</button>
+            <input id="song-name" class="name-input small" placeholder="song name" spellcheck="false" aria-label="Song name">
+            <button id="song-save" class="btn ghost" type="button">save song</button>
+          </div>
+        </div>
       </div>
-      <div id="arrangement-issues" class="issues small"></div>
-      <div id="timeline" class="timeline"></div>
     </section>
     <section class="module" data-module="log" data-span="3" aria-label="Activity log">
-      <h2 class="module-head"><span class="module-index">05</span>log</h2>
+      <h2 class="module-head"><span class="module-index">04</span>log</h2>
       <div id="activity" class="activity"></div>
     </section>
 
     <section class="module samples-panel" data-module="samples" data-span="8" aria-label="Samples">
-      <h2 class="module-head"><span class="module-index">06</span>samples</h2>
+      <h2 class="module-head"><span class="module-index">05</span>samples</h2>
       <div class="samples-head">
         <button id="samples-load" class="btn" type="button" title="Read the sample library from the device">read library</button>
         <input id="samples-search" class="name-input small" placeholder="search names or slots" spellcheck="false" aria-label="Search samples">
@@ -185,7 +187,7 @@
     </section>
 
     <section class="module designer-panel" data-module="design" data-span="12" aria-label="Sound design">
-      <h2 class="module-head"><span class="module-index">07</span>sound design</h2>
+      <h2 class="module-head"><span class="module-index">06</span>sound design</h2>
       <div class="designer-head">
         <select id="designer-start" class="designer-start" aria-label="Start from a preset or a saved design"></select>
         <input id="designer-name" class="name-input small" maxlength="40" placeholder="name" spellcheck="false" aria-label="Design name">

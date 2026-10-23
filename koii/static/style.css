@@ -456,7 +456,7 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 
 /* -- library, arrangement, log ---------------------------------------------------- */
 
-.library { display: flex; flex-direction: column; max-height: 280px; overflow-y: auto; counter-reset: item; border-top: 1px solid var(--paper-3); }
+.library { display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; counter-reset: item; border-top: 1px solid var(--paper-3); }
 .library-item {
   display: flex; align-items: center; gap: 7px;
   padding: 6px 2px; border-bottom: 1px solid var(--paper-3);
@@ -472,13 +472,16 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .library-meta { color: var(--muted); font-family: var(--num); font-size: 11px; white-space: nowrap; }
 .library-kind { font-family: var(--num); font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; padding: 0 4px; border: 1px solid var(--ink); border-radius: 2px; }
 .library-empty { color: var(--muted); font-size: 12px; padding: 8px 0; }
+.arrange { border-top: var(--line) solid var(--ink); padding-top: 10px; }
+.arrange .caption b { color: var(--ink); }
+.library-item .icon.confirming { padding: 0 5px; background: var(--warn); color: var(--ink); border-radius: 2px; font-size: 11px; }
 .arrangement {
   width: 100%; min-height: 60px; resize: vertical;
   background: #fff; border: var(--line) solid var(--ink); border-radius: 3px;
   padding: 8px; font-family: var(--mono); font-size: 12px;
 }
 .arrangement:focus { outline: 2px solid var(--signal); outline-offset: 1px; }
-.timeline { position: relative; display: flex; height: 30px; margin-top: 12px; border: var(--line) solid var(--ink); border-radius: 3px; overflow: hidden; background: var(--paper-2); }
+.timeline { position: relative; display: flex; height: 30px; margin-top: 8px; border: var(--line) solid var(--ink); border-radius: 3px; overflow: hidden; background: var(--paper-2); }
 .timeline:empty { display: none; }
 .timeline-block {
   display: flex; align-items: center; justify-content: center;
