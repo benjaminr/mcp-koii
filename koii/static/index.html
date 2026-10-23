@@ -141,19 +141,23 @@
       <h2 class="module-head"><span class="module-index">04</span>library · arrange</h2>
       <div class="library-body" data-regions="library" data-split="library">
         <div class="library-saved" data-region="saved" data-region-label="saved">
-          <div class="caption">saved · drag into the arranger, or press <b>+</b></div>
+          <div class="caption">patterns · drag into the arranger, or press <b>+</b></div>
           <div id="library" class="library"></div>
         </div>
         <div class="arrange" data-region="arrange" data-region-label="arrange">
+          <div class="song-bar">
+            <select id="song-select" class="song-select" aria-label="Open a saved song"></select>
+            <input id="song-name" class="name-input small" placeholder="song name" spellcheck="false" aria-label="Song name">
+            <button id="song-save" class="btn" type="button" title="Save the arrangement under this name">save</button>
+            <button id="song-delete" class="btn ghost" type="button" title="Delete this song from the library" hidden>delete</button>
+            <button id="arr-clear" class="btn ghost" type="button" title="Start a new, empty song">new</button>
+          </div>
           <div class="caption">arrange · light cells in a column to layer patterns, add columns to play them in turn</div>
           <div id="arranger" class="arranger"></div>
           <div id="arrangement-issues" class="issues small"></div>
           <div class="row arrange-controls">
             <button id="arr-play" class="btn primary transport-play" type="button" title="Play the song, or stop it">▶ play song</button>
             <button id="arr-loop" class="btn toggle" type="button" aria-pressed="false" title="Loop whatever plays next, until stopped (L)"><span class="led"></span>loop</button>
-            <input id="song-name" class="name-input small" placeholder="song name" spellcheck="false" aria-label="Song name">
-            <button id="song-save" class="btn" type="button">save song</button>
-            <button id="arr-clear" class="btn ghost" type="button" title="Start a new song">new</button>
           </div>
           <label class="arrangement-label"><span class="caption">as text</span>
             <textarea id="arrangement" class="arrangement" placeholder="intro x2, verse x4, verse+bass x4, chorus x8" spellcheck="false" aria-label="Arrangement as text"></textarea>

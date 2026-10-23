@@ -292,12 +292,12 @@ export class Arranger {
       this.sections.forEach((section, column) => grid.append(this._cell(lane, section, column)));
       grid.append(element("div", "arr-filler"));
     }
-    grid.append(this._laneAdder(library));
+    grid.append(...this._emptyLane());
 
     this.container.replaceChildren(grid);
     if (!this.sections.length && !this.lanes.length) {
       this.container.append(element("p", "arr-empty",
-        "Drag a pattern here from the list, or press + on it, to start a song. Light more cells in a column to layer patterns."));
+        "Drag a pattern onto the grid, or press + on it in the list, to start a song. Light more cells in a column to layer patterns."));
     }
     this.playing = null;
   }
@@ -404,31 +404,18 @@ export class Arranger {
     return cell;
   }
 
-  _laneAdder(library) {
-    const row = element("div", "arr-lane-adder");
-    const select = element("select", "arr-lane-select");
-    select.setAttribute("aria-label", "Add a lane");
-    select.append(new Option("+ lane…", ""));
-    const unused = (names) => names.filter((name) => !this.lanes.includes(name));
-    const patternNames = unused([...library.patterns.keys()]);
-    const songNames = unused([...library.songs.keys()]);
-    if (patternNames.length) {
-      const group = element("optgroup");
-      group.label = "patterns";
-      patternNames.forEach((name) => group.append(new Option(name, name)));
-      select.append(group);
-    }
-    if (songNames.length) {
-      const group = element("optgroup");
-      group.label = "songs";
-      songNames.forEach((name) => group.append(new Option(name, name)));
-      select.append(group);
-    }
-    select.addEventListener("change", () => {
-      if (select.value) this.addLane(select.value);
+  /** The last row is always an empty lane: drop a pattern on it to add a lane (lit where it lands). */
+  _emptyLane() {
+    const head = element("div", "arr-lane arr-lane-empty", "drop a pattern here");
+    head.dataset.drop = "new-lane";
+    head.title = "Drag a pattern from the list onto this row to add a lane; onto one of its cells to light it there too";
+    const cells = this.sections.map((section, column) => {
+      const cell = element("div", "arr-cell arr-cell-empty");
+      cell.dataset.column = column;
+      cell.dataset.drop = "new-lane";
+      return cell;
     });
-    row.append(select);
-    return row;
+    return [head, ...cells, element("div", "arr-filler")];
   }
 
   // -- dragging in ----------------------------------------------------------------------

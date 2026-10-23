@@ -500,7 +500,7 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .arranger.arr-dragging { outline: 2px dashed var(--signal); outline-offset: 2px; }
 .arr-grid { display: grid; min-width: max-content; }
 .arr-grid > * { border-right: 1px solid var(--paper-3); border-bottom: 1px solid var(--paper-3); min-width: 0; }
-.arr-corner, .arr-lane, .arr-lane-adder { background: var(--paper); border-right: var(--line) solid var(--ink); }
+.arr-corner, .arr-lane { background: var(--paper); border-right: var(--line) solid var(--ink); }
 .arr-corner { display: flex; flex-direction: column; justify-content: space-between; padding: 6px 8px; border-bottom: var(--line) solid var(--ink); }
 .arr-corner-label { font-family: var(--num); font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .arr-total { font-size: 16px; }
@@ -546,8 +546,12 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .arr-add-column { border: 0; border-bottom: var(--line) solid var(--ink); background: var(--paper-2); cursor: pointer;
                   font-size: 20px; font-weight: 300; color: var(--ink-2); }
 .arr-add-column:hover { background: var(--signal-soft); color: var(--ink); }
-.arr-lane-adder { grid-column: 1; padding: 4px 6px; border-bottom: 0; }
-.arr-lane-select { width: 100%; background: #fff; border: 1px solid var(--ink); border-radius: 2px; padding: 2px 4px; font-size: 12px; }
+.arr-lane-empty { color: var(--muted); font-size: 11px; font-style: italic; }
+.arr-lane-empty, .arr-cell-empty { border-bottom: 0; }
+.arr-cell-empty { cursor: default; }
+.arr-cell-empty::before { border-color: transparent; }
+.arranger.arr-dragging .arr-lane-empty { color: var(--ink); }
+.arranger.arr-dragging .arr-cell-empty::before { border-color: var(--paper-3); }
 .arr-drop { box-shadow: inset 0 0 0 2px var(--signal); }
 .arr-empty { margin: 0; padding: 14px; color: var(--muted); font-size: 12px; }
 
@@ -856,3 +860,8 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
   background: var(--signal); color: var(--ink); padding: 2px 6px; border-radius: 2px; align-self: center;
 }
 .module.transport-focus > .module-head > .module-tools { order: 2; margin-left: 8px; }
+
+/* The arranger's song bar: open, name, save, delete, new. */
+.song-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.song-select { background: #fff; border: var(--line) solid var(--ink); border-radius: 3px; padding: 5px 6px; min-width: 180px; }
+.song-bar .name-input.small { flex: 1 1 160px; }

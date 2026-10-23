@@ -629,10 +629,10 @@ function enableSound(on) {
 function renderLibrary() {
   const box = $("#library");
   box.replaceChildren();
-  const { patterns, songs } = state.server.library;
-  if (!patterns.length && !songs.length) {
-    box.append(element("div", "library-empty", "Nothing saved yet. Name a pattern and press Save."));
-    return;
+  const { patterns } = state.server.library;
+  if (!patterns.length) {
+    box.append(element("div", "library-empty", "No patterns yet. Name one in the editor and press Save."));
+    return renderSongs();
   }
   for (const pattern of patterns) {
     const row = element("div", "library-item");
@@ -640,7 +640,6 @@ function renderLibrary() {
     row.dataset.kind = "pattern";
     makeDraggable(row, pattern.name);
     if (pattern.name === editor.name) row.classList.add("current");
-    row.append(element("span", "library-kind", "pat"));
     const name = button("library-name", pattern.name, "Open in the editor", () => loadPattern(pattern.name, pattern.text));
     const bars = pattern.beats ? `${+(pattern.beats / 4).toFixed(2)} bar${pattern.beats === 4 ? "" : "s"}` : "error";
     row.append(name, element("span", "library-meta", pattern.error ? "doesn't parse" : `${bars} · ${pattern.bpm}`));
@@ -651,23 +650,19 @@ function renderLibrary() {
     );
     box.append(row);
   }
-  for (const song of songs) {
-    const row = element("div", "library-item");
-    row.dataset.name = song.name;
-    row.dataset.kind = "song";
-    makeDraggable(row, song.name);
-    row.append(element("span", "library-kind", "song"));
-    row.append(button("library-name", song.name, `Open in the arranger: ${song.arrangement}`, () => openSong(song)));
-    row.append(element("span", "library-meta", song.bpm ? `${song.bpm}` : ""));
-    row.append(
-      button("icon row-play", "▶", "Open in the arranger and play", () => {
-        if (playingKind() === "song" && $("#song-name").value.trim() === song.name) return stop();
-        return openSong(song).then(playArrangement);
-      }),
-      deleteButton(song.name),
-    );
-    box.append(row);
-  }
+  renderSongs();
+}
+
+/** The arranger's song picker: every saved song, with the open one selected. */
+function renderSongs() {
+  const select = $("#song-select");
+  const songs = state.server?.library.songs || [];
+  const current = $("#song-name").value.trim();
+  select.replaceChildren(new Option(songs.length ? `open a song (${songs.length})…` : "no saved songs yet", ""));
+  for (const song of songs) select.append(new Option(song.name, song.name));
+  select.value = songs.some((song) => song.name === current) ? current : "";
+  select.disabled = !songs.length;
+  $("#song-delete").hidden = !songs.some((song) => song.name === current);
 }
 
 /** ✕ asks "delete?" first; a second press within a few seconds deletes. */
@@ -706,6 +701,7 @@ async function openSong(song) {
   $("#arrangement").value = song.arrangement;
   $("#song-name").value = song.name;
   arranger.setText(song.arrangement);
+  renderSongs();
   previewArrangement();
 }
 
@@ -864,6 +860,17 @@ function bindControls() {
     $("#song-name").value = "";
     arranger.clear();
     $("#arrangement-issues").replaceChildren();
+    renderSongs();
+  });
+  $("#song-select").addEventListener("change", (event) => {
+    const song = state.server.library.songs.find((saved) => saved.name === event.target.value);
+    if (song) openSong(song);
+  });
+  $("#song-name").addEventListener("input", renderSongs);
+  $("#song-delete").addEventListener("click", (event) => {
+    const name = $("#song-name").value.trim();
+    if (!pressedTwice(event.currentTarget, "delete?")) return;
+    run("delete", { name }).then(toast).catch(() => {});
   });
   $("#arr-play").addEventListener("click", toggleArrangement);
   $("#arr-loop").addEventListener("click", () => setLoop(!state.loop));

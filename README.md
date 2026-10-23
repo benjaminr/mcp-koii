@@ -71,12 +71,13 @@ pads you press on the device.
   Pressing play switches at once; one **loop** setting covers everything. Turn on **Live
   edit** and every change to a looping pattern switches in at the end of the current pass.
   Undo and redo (⌘Z / ⇧⌘Z).
-- **Library and arranger:** saved patterns and songs, to open, play, loop and delete,
-  beside a song grid. Rows are lanes (one per pattern) and columns are sections: light
+- **Library and arranger:** saved patterns, to open, play and delete, beside a song grid
+  with its own song picker (open, name, save, delete, new). Rows are lanes (one per pattern) and columns are sections: light
   several cells in a column to layer patterns, add columns to play them in turn, and set
   each section's repeats with − / +. Columns are as wide as they play, so the song's
   shape shows at a glance, and the playing section lights up. Drag patterns in from the
-  list (onto a cell, a section, or **+** for a new section), drag section headers to
+  list: onto the empty lane at the bottom for a new lane, onto a cell or a section to
+  layer it there, or onto **+** for a new section. Drag section headers to
   reorder them, and move lanes up or down (the top lit lane sets a section's tempo). The
   grid and the text form (`intro x2, verse+bass x4`) stay in step, so you can type too.
   Patterns download as `.mid` files.
