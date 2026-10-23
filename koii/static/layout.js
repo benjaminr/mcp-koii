@@ -6,7 +6,8 @@
 //
 // Modules sit on a 12-column grid of 4 px rows. Each module spans as many rows as it is
 // tall, so modules of different heights pack together without leaving gaps under the
-// shorter ones.
+// shorter ones. A module marked data-fill (the log) also stretches down to line up with
+// the bottom of the modules beside it, and its [data-grow] part scrolls inside.
 
 const STORAGE_KEY = "koii.layout.v1";
 const COLUMNS = 12;
@@ -77,7 +78,10 @@ export class LayoutEditor {
     }]));
     this.dragging = null;
 
-    const measure = new ResizeObserver((entries) => entries.forEach((entry) => this._fitRows(entry.target)));
+    const measure = new ResizeObserver((entries) => {
+      entries.forEach((entry) => this._fitRows(entry.target));
+      this._fill();
+    });
     for (const module of this.modules) {
       this._addModuleTools(module);
       measure.observe(module);
@@ -135,6 +139,41 @@ export class LayoutEditor {
     for (const container of this.page.querySelectorAll("[data-regions]")) this._applyRegions(container);
     for (const container of this.page.querySelectorAll("[data-split]")) this._applySplit(container);
     this._renderHidden();
+    this._fill();
+  }
+
+  /**
+   * Stretch data-fill modules down to the lowest bottom of the modules beside them that
+   * start no lower, so a short log doesn't leave a gap next to a tall device panel.
+   * Modules given a height by hand, collapsed ones, and narrow screens are left alone.
+   */
+  _fill() {
+    for (const module of this.modules.filter((candidate) => candidate.hasAttribute("data-fill"))) {
+      const settings = this._moduleSettings(module.dataset.module);
+      const allowed = !module.hidden && !settings.height && !settings.collapsed && window.innerWidth >= MEDIUM_PX;
+      const wasFilled = module.classList.contains("filled");
+      if (wasFilled) {
+        module.style.height = "";
+        module.classList.remove("filled");
+      }
+      if (!allowed) {
+        if (wasFilled) this._fitRows(module);
+        continue;
+      }
+      const own = module.getBoundingClientRect();
+      let bottom = own.bottom;
+      for (const other of this.modules) {
+        if (other === module || other.hidden) continue;
+        const rect = other.getBoundingClientRect();
+        const beside = rect.right <= own.left + 1 || rect.left >= own.right - 1;
+        if (beside && rect.top <= own.top + 1) bottom = Math.max(bottom, rect.bottom);
+      }
+      if (bottom > own.bottom + 2) {
+        module.style.height = `${Math.round(bottom - own.top)}px`;
+        module.classList.add("filled");
+      }
+      this._fitRows(module);
+    }
   }
 
   _order() {
