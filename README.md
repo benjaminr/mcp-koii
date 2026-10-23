@@ -2,143 +2,106 @@
 
 <img src="./mcp.jpg" width="318"><img src="./koii.jpg" width="200">
 
-This project is a Model Context Protocol (MCP) server that acts as a controller for the Teenage Engineering EP-133 K.O. II sampler via MIDI
+An MCP server that lets Claude make beats and songs with you on an EP-133 K.O. II over MIDI.
+You talk about the music; Claude writes patterns in a small, strict text notation, plays
+them on your device, loops them while you iterate, and arranges them into songs.
 
-## Features
+```
+@bpm 92
+@swing 58
 
-- Connect to your EP-133 K.O. II device via MIDI
-- Play notes and patterns through text commands
-- View the default pad configuration to understand sound mapping
-- Create and play drum patterns with a simple text-based syntax
-- Support for multiple instrument reference methods (pad labels, MIDI notes, instrument names, sound names)
-- Simultaneous playback of multiple instruments in drum patterns
-- Integration with Claude through MCP
+kick:  x... ..x. x... ....
+snare: .... x... .... x..o
+hat:   x.x. x.x. x.x. x.xX
+```
 
-## Installation
+## Install
 
-### Prerequisites
-
-- Python 3.8 or later
-- `mido` (MIDI handling)
-- `mcp` (Model Context Protocol SDK)
-
-### Quick Install
+Requires Python 3.9–3.12 and an EP-133 connected over USB-C. (Python 3.13 works too, but
+`python-rtmidi`, which talks to the MIDI hardware, has no prebuilt wheels for it yet and
+will compile from source.)
 
 ```bash
-# Install the required packages
-pip install mido "mcp[cli]"
-
-# Clone the repository
 git clone https://github.com/benjaminr/mcp-koii.git
 cd mcp-koii
+uv venv --python 3.12 .venv
+uv pip install -r requirements.txt
 
-# Install the MCP server
-mcp install koii_server.py:server -e .
+# Add to Claude Desktop
+mcp install koii_server.py --name koii -e .
+
+# Or try it in the MCP inspector
+mcp dev koii_server.py -e .
 ```
 
-## Usage with Claude Desktop
+For Claude Code: `claude mcp add koii -- /path/to/mcp-koii/.venv/bin/python /path/to/mcp-koii/koii_server.py`.
 
-1. Make sure your EP-133 K.O. II is connected to your computer via USB.
+## Making music
 
-2. Launch Claude Desktop with MCP enabled.
+Ask Claude something like *"connect to my K.O. II and let's make a slow boom-bap beat"*,
+or use the `make_a_beat` prompt. A typical session:
 
-3. Start controlling your EP-133 K.O. II by asking Claude natural language questions like:
-   - "List available MIDI ports"
-   - "Connect to the EP-133 device"
-   - "Play a C major scale"
-   - "Play a drum pattern with kick on beats 1 and 3, snare on 2 and 4, and hi-hat on every 8th note"
+1. `connect()`: finds the EP-133 automatically.
+2. Claude writes a pattern, checks it with `check_pattern`, and runs `play(..., loop=True)`.
+3. You say what to change. Each new `play` switches **at the end of the current loop**,
+   so the groove never stops while you iterate.
+4. `save_pattern("verse", ...)` keeps versions you like (saved to `~/.koii/library.json`).
+5. `save_song("track", "intro x2, verse x4, verse+bassline x4, chorus x8, outro")` and
+   `play("track")`.
+6. `export_midi("track")` writes a `.mid` file for your DAW.
 
-## Running in Development Mode
+## The notation
 
-You can run the MCP server in development mode to test it without Claude Desktop:
+Full spec: **[NOTATION.md](NOTATION.md)**. The short version:
+
+| | |
+|-|-|
+| `kick: x...x...` | one line per sound; **one character = one step** (a 16th note) |
+| `x` `X` `o` `1`–`9` | hit, accent, ghost, level 1–9 |
+| `.` `-` | rest, hold the previous note |
+| spaces, `\|` | ignored; use them to group beats |
+| `@bpm` `@swing` `@grid` | tempo, swing (50–75), step length |
+| `@map bass = ch2` + `bass notes: C2 Eb2 G1` | pitched lines on a MIDI channel |
+| `verse x4, chorus+bass x2` | arrangements: repeat with `xN`, layer with `+` |
+
+Sounds are named with kit aliases (`kick`, `snare`, `hat`, `oh`, `clap`, …), pad labels
+(`A1`, `B.`, `CEnter`) or MIDI notes. `show_kit` shows them all and `set_alias` adds your
+own. Mistakes come back as errors with line and column, e.g.
+`line 2: 'snare' has 15 steps, which doesn't divide the longest track 'kick' (16 steps)`.
+
+## Device setup
+
+Drums need no setup. For basslines and melodies, assign the pad to a MIDI channel in
+Sound Edit (OS 2.0+). If dynamics don't come through, turn on pad velocity. Details, with
+sources and what has been checked on hardware, are in **[DEVICE.md](DEVICE.md)**.
+
+## Tools
+
+| Tool | |
+|------|-|
+| `list_midi_ports`, `connect`, `disconnect`, `status` | connection |
+| `check_pattern` | validate and show a pattern without playing (no device needed) |
+| `play`, `stop` | play pattern text, saved names, layers or arrangements; loop and switch seamlessly |
+| `audition` | hear one sound or pad |
+| `save_pattern`, `save_song`, `show`, `list_library`, `delete` | the library |
+| `export_midi` | write a `.mid` file (no device needed) |
+| `show_kit`, `set_alias`, `remove_alias`, `list_factory_sounds` | the kit |
+
+Prompts: `notation_guide`, `device_guide`, `make_a_beat`.
+
+## Development
 
 ```bash
-# Run with the inspector UI
-mcp dev koii_server.py:server -e .
+uv pip install pytest
+.venv/bin/python -m pytest
 ```
 
-## Features and Commands
+The code is in `koii/`: `notation` (parser), `sequence` (timing, swing, arrangements,
+MIDI files), `player` (background playback), `library` (persistence), `studio` (ties it
+together) and `server` (MCP tools). Set `KOII_HOME` to keep the library somewhere else.
 
-### Basic Commands
-
-- **List available MIDI ports**: Shows all available MIDI output ports on your system.
-- **Connect to a MIDI device**: Connect to the EP-133 K.O. II by name or port number.
-- **Disconnect**: Close the connection to the current MIDI device.
-
-### Playing Notes and Patterns
-
-- **Play a note**: Play a single note with specified velocity and duration.
-- **Play a pattern**: Play a sequence of notes with timing information.
-- **Play a drum pattern**: Play a text-based drum pattern.
-
-### Sound Browser
-
-- **List sound categories**: View available sound categories (Kicks, Snares, etc.).
-- **List sounds in category**: Browse sounds within a specific category.
-- **Get default pad configuration**: See which sounds are mapped to each pad by default.
-
-## MIDI Implementation
-
-The EP-133 K.O. II responds to the following MIDI messages:
-
-- **Note On/Off**: Triggers sounds on pads (C2-B5, notes 36-83)
-
-## Drum Pattern Syntax
-
-The drum pattern system supports four different ways to reference sounds:
-
-### 1. Using pad references:
-```
-x...x...x...x...  # A.
-....x.......x...  # A2
-x.x.x.x.x.x.x.x.  # A5
-```
-
-### 2. Using MIDI note numbers:
-```
-x...x...x...x...  # 36
-....x.......x...  # 40
-x.x.x.x.x.x.x.x.  # 43
-```
-
-### 3. Using sound names:
-```
-x...x...x...x...  # "MICRO KICK"
-....x.......x...  # "NT SNARE"
-x.x.x.x.x.x.x.x.  # "NT HH CLOSED"
-```
-
-### 4. Mixed references:
-```
-x...x...x...x...  # A.       (pad reference)
-....x.......x...  # 40       (MIDI note)
-......x.........  # "NT RIDE" (sound name)
-```
-
-### Pattern Format
-
-- Each line represents a different instrument/sound
-- 'x' or 'X' indicates a hit (high velocity)
-- 'o' or 'O' indicates a softer hit (lower velocity)
-- '.' indicates no hit
-- Each position represents a 16th note
-- Comments after '#' specify what sound to trigger using any of the reference methods
-- Multiple instruments can be triggered simultaneously with their hits overlapping
-
-## Troubleshooting
-
-- **No MIDI ports found**: Make sure your EP-133 K.O. II is connected and powered on.
-- **Connection issues**: Try reconnecting the USB cable or restarting your EP-133.
-- **Notes not playing**: Verify that the device is in the correct MIDI mode.
-- **Multiple instruments not playing simultaneously**: Use a higher BPM value to ensure the EP-133 K.O. II can process all notes during playback.
-- **Unknown instruments**: Use exact instrument names, pad labels, MIDI notes or sound names in quotes.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
+## Acknowledgements
 
 - [Teenage Engineering](https://teenage.engineering/) for the EP-133 K.O. II.
 - [Anthropic](https://www.anthropic.com/) for Claude and the Model Context Protocol.
-- [MIDO](https://mido.readthedocs.io/) for the MIDI handling library.
+- [MIDO](https://mido.readthedocs.io/) for MIDI handling.

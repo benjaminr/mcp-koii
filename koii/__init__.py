@@ -1,16 +1,11 @@
 """
-KOII - Teenage Engineering EP-133 K.O. II MIDI Interface
+KOII: make beats and songs on a Teenage Engineering EP-133 K.O. II over MIDI.
 
-This package provides a Model Context Protocol (MCP) server that allows
-controlling the Teenage Engineering EP-133 K.O. II sampler via MIDI.
-
-Features:
-- Text-based drum pattern notation with multiple velocity controls
-- Common instrument name mapping for quick beat creation
-- Pattern storage and management for iterative composition
-- Song arrangement (sequence patterns into full tracks)
-- Scale mode with melodic sequence playback
-- 300+ built-in sounds organized by category
+- koii.notation  the pattern notation (see NOTATION.md)
+- koii.sequence  patterns/arrangements -> timed MIDI events, MIDI file export
+- koii.player    background playback with looping and seamless switching
+- koii.library   persistent patterns, songs and kit aliases
+- koii.studio    ties it together; koii.server exposes it over MCP
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
