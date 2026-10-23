@@ -509,3 +509,10 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
   padding: 10px 14px; max-width: min(640px, calc(100vw - 32px)); z-index: 20;
 }
 .toast.error { background: var(--signal); color: var(--ink); box-shadow: 4px 4px 0 var(--ink); }
+.score .head.hollow { fill: #fff; stroke: var(--ink); stroke-width: 1.5; }
+.score .rest { font: 22px "Apple Symbols", "Noto Music", "Segoe UI Symbol", serif; fill: var(--ink); }
+.score .rest-block { fill: var(--ink); }
+.score .tie { fill: none; stroke: var(--ink); stroke-width: 1.3; }
+.score .staff-name { font: 10px var(--num); letter-spacing: 0.06em; fill: var(--muted); text-transform: uppercase; }
+.score .rest-stroke { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.score .rest-dot { fill: var(--ink); }

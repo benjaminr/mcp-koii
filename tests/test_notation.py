@@ -163,3 +163,9 @@ def test_warns_when_pitched_notes_would_also_trigger_pads():
     assert len(clash.warnings) == 1
     assert "C3 (B.), D3 (BEnter)" in clash.warnings[0]
     assert "warning: 'bass' notes C3 (B.)" in render_pattern(clash)
+
+
+def test_a_hold_can_carry_on_from_the_previous_line():
+    (t,) = parse_pattern("@map b = ch2\nb: ...x\nb: --..\nb notes: C1").tracks
+    assert t.steps == [None, None, None, 100, HOLD, HOLD, None, None]
+    assert "'-' (hold) must follow a hit" in errors("kick: x..x\nkick: .-..")[0]

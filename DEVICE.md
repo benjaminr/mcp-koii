@@ -1,11 +1,45 @@
-# EP-133 K.O. II: MIDI reference
+# EP-133 K.O. II: capabilities, limits and MIDI reference
 
 What this project relies on, where each fact comes from, and how sure we are.
 
-- **Hardware** = checked on a real EP-133 over USB on macOS (October 2026).
+- **Hardware** = checked on a real EP-133 (OS 2.5) over USB on macOS, October 2026.
 - **Official** = Teenage Engineering's [EP-133 guide](https://teenage.engineering/guides/ep-133)
   or [product page](https://teenage.engineering/products/ep-133).
-- **Community** = transcribed from the device or forum reports; not published by TE.
+- **Community** = reverse engineering or forum reports; not published by TE.
+- **Unknown** = sources conflict or nobody has said.
+
+## Capabilities at a glance
+
+| Area | Fact | Source | What koii does |
+|------|------|--------|----------------|
+| Connection | USB-C port named `EP-133`, MIDI in and out | hardware | finds it automatically |
+| Connection | Also a class-compliant USB audio device: 2 in / 2 out, 48 kHz on macOS | hardware | lets the visualiser hear the device (planned) |
+| Connection | Identity request answers with manufacturer `00 20 76`, device `33`; version bytes are zero | hardware | can't read the OS version this way |
+| Notes | 4 groups × 12 pads = notes 36–83, groups 12 notes apart, pad order `.` `0` ENTER `1`–`9` | hardware | pad labels and kit names map to these |
+| Notes | Receives on all channels, sends on channel 1 | official; sending checked | plays pads on channel 1 by default |
+| Notes | Incoming velocity is respected even with pad velocity off | hardware | `x X o 1–9` dynamics need no setup |
+| Notes | Pad presses go out at a fixed velocity 100 while pad velocity is off | hardware | shown live in the visualiser |
+| Pitch | A pad can have its own MIDI channel (Sound Edit → MIDI, knob X) and root note (knob Y) | official; channel checked | pitched tracks play on `chN` |
+| Pitch | That pad still plays from its own pad note on channel 1 too | hardware | the same pad works as drum and bassline |
+| Pitch | Pads without their own channel hear every channel, so pitched notes 36–83 also fire them | hardware | warns about clashing notes |
+| Voices | 16 mono / 12 stereo voices; fewer with time-stretched, stereo or high-pitched samples | official | warns when a step starts more than 12 notes |
+| Voices | ONESHOT pads play the whole sample and ignore note-off; KEY and LEGATO stop on note-off | official | holds (`-`) only matter in KEY/LEGATO |
+| Control | Program change no longer switches sounds (since OS 2.0.2) | official | not used |
+| Control | Bank select (CC 0/32) reaches sounds 1–999 | official | not used |
+| Control | OS 2.5: CC 64 sustain for KEY/LEGATO pads; CC 12/13 drive FX X/Y | official | FX control planned |
+| Sync | MIDI clock in/out, sync 1/8, 1/16 or 24 PPQN, MIDI thru | official | koii plays notes itself and sends no clock |
+| Samples | 999 slots, 128 MB (64 MB on early units) | official | |
+| Samples | Stored as mono 16-bit at 46,875 Hz; transfer is proprietary SysEx | community, OS 2.5.1 | sample library planned |
+| Sequencer | Patterns per group, bars per pattern, projects: sources conflict | unknown | doesn't apply: koii sequences live over MIDI |
+
+**Live MIDI versus the device's sequencer.** koii plays patterns from the computer, note by
+note. The EP-133's own sequencer limits (patterns, bars, song positions) don't apply, but its
+sound engine's do: voices, play modes and which pads listen on which channel.
+
+**koii's own limits:** 4/4 only; steps of 1/4, 1/8, 1/16, 1/32 or 8th/16th triplets; up to
+1,024 steps per pattern; 20–300 BPM; swing 50–75 %; MIDI notes 0–127 on channels 1–16.
+Timing comes from the computer; scheduling is drift-free (tested within 10 ms), but USB MIDI
+latency to the device hasn't been measured.
 
 ## Pads and MIDI notes (official, hardware-checked)
 

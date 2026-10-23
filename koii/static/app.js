@@ -1,7 +1,7 @@
 // The visualiser page: wires the device view, editor, library, arranger and
 // activity feed to the server's commands and live events.
 
-import { command, getState, listen, midiUrl } from "./api.js";
+import { command, getState, listen, midiUrl, musicxmlUrl } from "./api.js";
 import { BrowserSynth } from "./audio.js";
 import { Device, Keys, noteName, noteToPad } from "./device.js";
 import { BRUSHES, Grid } from "./grid.js";
@@ -171,6 +171,7 @@ async function checkText() {
     renderEditor();
     showIssues([], pattern.warnings);
     $("#midi-link").href = midiUrl(text);
+    $("#musicxml-link").href = musicxmlUrl(text);
     scheduleLive();
   } catch (error) {
     if (sequence !== editor.checkSequence) return;

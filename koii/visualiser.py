@@ -212,6 +212,8 @@ def _make_handler(visualiser: Visualiser):
                 return self._send_json(HTTPStatus.OK, {"ok": True, "result": full_state(studio)})
             if url.path == "/api/midi":
                 return self._download_midi(parse_qs(url.query))
+            if url.path == "/api/musicxml":
+                return self._download_musicxml(parse_qs(url.query))
             return self._serve_static(url.path)
 
         def _serve_static(self, path: str) -> None:
@@ -233,6 +235,17 @@ def _make_handler(visualiser: Visualiser):
             midi.save(file=buffer)
             filename = "".join(c if c.isalnum() or c in "-_" else "_" for c in label)[:60] or "pattern"
             self._send_bytes(buffer.getvalue(), "audio/midi", f"{filename}.mid")
+
+        def _download_musicxml(self, query: Dict[str, list]) -> None:
+            what = (query.get("what") or [""])[0]
+            if not what:
+                return self._error(HTTPStatus.BAD_REQUEST, "'what' is required")
+            try:
+                xml, name = studio.musicxml(what)
+            except (NotationError, LibraryError) as e:
+                return self._error(HTTPStatus.BAD_REQUEST, str(e))
+            filename = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)[:60] or "pattern"
+            self._send_bytes(xml.encode(), "application/vnd.recordare.musicxml+xml", f"{filename}.musicxml")
 
         def _stream_events(self) -> None:
             subscriber = studio.events.subscribe()

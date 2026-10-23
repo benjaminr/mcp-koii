@@ -170,8 +170,12 @@ def resolve_name(name: str, maps: Dict[str, Target], aliases: Dict[str, str]) ->
 # Pattern parser
 # ---------------------------------------------------------------------------
 
-def _parse_steps(text: str, line_no: int, col0: int, issues: List[Issue]) -> Tuple[List[Step], List[str]]:
-    """Parse one line of steps. Returns the step values and the characters they came from."""
+def _parse_steps(text: str, line_no: int, col0: int, issues: List[Issue],
+                 previous: Step = None) -> Tuple[List[Step], List[str]]:
+    """
+    Parse one line of steps. Returns the step values and the characters they came from.
+    `previous` is the track's last step from earlier lines, so a hold can carry on across lines.
+    """
     steps: List[Step] = []
     symbols: List[str] = []
     for i, ch in enumerate(text):
@@ -184,7 +188,8 @@ def _parse_steps(text: str, line_no: int, col0: int, issues: List[Issue]) -> Tup
         elif ch in REST_CHARS:
             steps.append(None)
         elif ch == "-":
-            if not steps or steps[-1] is None:
+            before = steps[-1] if steps else previous
+            if before is None:
                 issues.append(Issue(line_no, col, "'-' (hold) must follow a hit or another '-'"))
             steps.append(HOLD)
         elif ch == "0":
@@ -288,7 +293,8 @@ def parse_pattern(text: str, aliases: Optional[Dict[str, str]] = None) -> Patter
                 ))
                 target = Target("note", note=0, label="?")
             tracks[key] = Track(name=name, target=target, line=line_no)
-        steps, symbols = _parse_steps(steps_text, line_no, col, issues)
+        previous = tracks[key].steps[-1] if tracks[key].steps else None
+        steps, symbols = _parse_steps(steps_text, line_no, col, issues, previous)
         if not steps:
             issues.append(Issue(line_no, None, f"track '{name}' has no steps"))
         tracks[key].steps.extend(steps)
@@ -360,9 +366,36 @@ def parse_pattern(text: str, aliases: Optional[Dict[str, str]] = None) -> Patter
         swing=settings.get("swing", 50),
         grid=settings.get("grid", "1/16"),
         source=text,
-        warnings=_pad_collision_warnings(tracks.values()),
+        warnings=_pad_collision_warnings(tracks.values()) + _polyphony_warnings(tracks.values(), length),
         maps={name: _target_text(target) for name, target in maps.items()},
     )
+
+
+# The EP-133 plays up to 16 mono or 12 stereo voices at once (official spec, OS 2.0+).
+MAX_VOICES_STEREO = 12
+MAX_VOICES_MONO = 16
+
+
+def _polyphony_warnings(tracks, length: int) -> List[str]:
+    """Warn when one step starts more notes than the device can play together."""
+    starts = [0] * length
+    for track in tracks:
+        note_index = 0
+        for step in range(length):
+            value = track.steps[step % len(track.steps)]
+            if not isinstance(value, int):
+                continue
+            if track.target.pitched and track.notes:
+                starts[step] += len(track.notes[note_index % len(track.notes)])
+                note_index += 1
+            else:
+                starts[step] += 1
+    busiest = max(starts, default=0)
+    if busiest <= MAX_VOICES_STEREO:
+        return []
+    step = starts.index(busiest) + 1
+    return [f"step {step} starts {busiest} notes at once; the EP-133 plays at most {MAX_VOICES_MONO} mono or "
+            f"{MAX_VOICES_STEREO} stereo voices, so some will be cut short"]
 
 
 def _target_text(target: Target) -> str:

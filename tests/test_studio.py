@@ -285,3 +285,23 @@ def test_a_page_opened_mid_loop_can_see_the_current_pass(studio):
     assert studio.events.current_pass()["loop"] is True
     studio.stop()
     assert studio.events.current_pass() is None
+
+
+def test_musicxml_export_for_text_and_saved_patterns(studio, tmp_path):
+    studio.save_pattern("groove", "kick: x...x...\nsnare: ....x...")
+    out = studio.export_musicxml("groove")
+    path = tmp_path / "exports" / "groove.musicxml"
+    assert path.exists() and "MuseScore" in out
+    assert "<score-partwise" in path.read_text() and "<work-title>groove</work-title>" in path.read_text()
+    xml, name = studio.musicxml("kick: x...")
+    assert name == "pattern" and "<unpitched>" in xml
+    with pytest.raises(LibraryError, match="one pattern at a time"):
+        studio.musicxml("groove x2")
+
+
+def test_check_includes_the_score_and_voice_warnings(studio):
+    result = studio.check_pattern("kick: x...")
+    assert result["score"]["staves"][0]["bars"][0][0]["value"] == "quarter"
+    crowded = "@map k = ch3\nk: x...\nk notes: " + "+".join(f"C{o}" for o in range(1, 5)) + "+" + "+".join(
+        f"E{o}" for o in range(1, 5)) + "+" + "+".join(f"G{o}" for o in range(1, 6))
+    assert any("at most 16 mono or 12 stereo voices" in w for w in studio.check_pattern(crowded)["warnings"])

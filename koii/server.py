@@ -223,6 +223,15 @@ def export_midi(what: str, filename: Optional[str] = None, bpm: Optional[int] = 
     return studio.export_midi(what, filename, bpm)
 
 
+@tool
+def export_musicxml(what: str, filename: Optional[str] = None) -> str:
+    """
+    Write sheet music (MusicXML) for pattern text or a saved pattern: a drum staff plus a staff per
+    pitched track, with rests, ties and triplets. Opens in MuseScore, Dorico, Sibelius and Finale.
+    """
+    return studio.export_musicxml(what, filename)
+
+
 # -- kit --------------------------------------------------------------------
 
 @tool

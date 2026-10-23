@@ -105,3 +105,10 @@ def test_saving_and_downloading_midi(visualiser):
     assert status == 200 and content_type == "audio/midi" and body.startswith(b"MThd")
     status, data = command(visualiser, "nonsense")
     assert status == 404
+
+
+def test_downloading_sheet_music(visualiser):
+    status, content_type, body = request(visualiser, "GET", "/api/musicxml?what=kick%3A%20x...")
+    assert status == 200 and "musicxml" in content_type and b"<score-partwise" in body
+    status, _, _ = request(visualiser, "GET", "/api/musicxml?what=nothing-saved")
+    assert status == 400

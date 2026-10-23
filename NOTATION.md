@@ -59,7 +59,8 @@ Holds only change what you hear when the pad is in a gated play mode
 Names have no spaces (use `openhat` or `oh`, not `open hat`) and are case-insensitive.
 
 Writing the same track name again **continues** that track, which is the easy way
-to write multi-bar parts:
+to write multi-bar parts. A hold at the start of a line carries on the note from the
+previous line, so notes can be held across bar lines:
 
 ```
 kick: x...x...x...x...
@@ -120,6 +121,23 @@ Directives start with `@` and apply to the whole pattern. All are optional.
 
 Swing, precisely: steps come in pairs; the second step of each pair starts at
 `swing%` of the pair's duration instead of 50%.
+
+## Warnings
+
+Some patterns are valid but won't sound as written on the EP-133. The pattern summary warns
+about them:
+
+- a pitched note from C2 to B5 that shares a number with a pad (that pad plays too);
+- a step that starts more than 12 notes at once (the device has 16 mono / 12 stereo voices).
+
+## Sheet music
+
+`export_musicxml` (and *⤓ score* in the visualiser) writes the pattern as sheet music: one
+percussion staff for the drums and one staff per pitched track. The rhythm is spelled the
+standard way: rests fill the gaps, notes are tied across beat and bar lines, triplet grids
+are written as triplets, accents (`X`, `9`) get `>` and ghost notes (`o`) are bracketed.
+Swing is a playing style, so it isn't written. Drum hits are written up to the next hit or
+the end of their beat; pitched notes last as long as their holds.
 
 ## Comments
 

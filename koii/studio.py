@@ -21,6 +21,7 @@ from koii.notation import (
     NotationError, looks_like_pattern, note_name, parse_target, pattern_to_dict, render_pattern,
 )
 from koii.player import Player
+from koii.score import build_score, score_to_dict, score_to_musicxml
 from koii.sequence import Section, expand, layer, to_midi_file, total_seconds
 
 logger = logging.getLogger(__name__)
@@ -240,15 +241,15 @@ class Studio:
 
     def export_midi(self, what: str, filename: Optional[str] = None, bpm: Optional[int] = None) -> str:
         sections, label, _ = self._sections(what, bpm)
-        if not filename:
-            filename = re.sub(r"[^\w\-]+", "_", label)[:60].strip("_") or "pattern"
-        if not filename.endswith(".mid"):
-            filename += ".mid"
-        out_dir = self.library.home / "exports"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        path = out_dir / Path(filename).name
+        path = self._export_path(filename or label, ".mid")
         to_midi_file(sections, self.channel).save(str(path))
         return f"wrote {path} ({total_seconds(sections):.1f}s)"
+
+    def _export_path(self, name: str, suffix: str) -> Path:
+        stem = re.sub(r"[^\w\- ]+", "_", Path(name).name.removesuffix(suffix))[:60].strip("_ ") or "pattern"
+        out_dir = self.library.home / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        return out_dir / f"{stem}{suffix}"
 
     # -- kit ----------------------------------------------------------------
 
@@ -332,8 +333,24 @@ class Studio:
         return {"sections": unique, "order": order, "seconds": total_seconds(sections)}
 
     def check_pattern(self, text: str) -> Dict[str, Any]:
-        """Parse pattern text for the visualiser. Raises NotationError like check()."""
-        return pattern_to_dict(self.library.parse(text))
+        """Parse pattern text for the visualiser, with its sheet music. Raises NotationError like check()."""
+        pattern = self.library.parse(text)
+        return {**pattern_to_dict(pattern), "score": score_to_dict(build_score(pattern))}
+
+    def musicxml(self, what: str) -> tuple:
+        """Sheet music for pattern text or a saved pattern. Returns (MusicXML text, name)."""
+        if looks_like_pattern(what):
+            return score_to_musicxml(build_score(self.library.parse(what))), "pattern"
+        kind, stored = self.library.lookup(what.strip())
+        if kind != "pattern":
+            raise LibraryError(f"no pattern named '{what.strip()}'. Sheet music works for one pattern at a time")
+        return score_to_musicxml(build_score(self.library.get_pattern(stored)), title=stored), stored
+
+    def export_musicxml(self, what: str, filename: Optional[str] = None) -> str:
+        xml, name = self.musicxml(what)
+        path = self._export_path(filename or name, ".musicxml")
+        path.write_text(xml)
+        return f"wrote {path} (opens in MuseScore, Dorico, Sibelius, Finale…)"
 
     def arrangement_info(self, arrangement: str, bpm: Optional[int] = None) -> Dict[str, Any]:
         sections = expand(arrangement, self.library.get_pattern, self.library.get_song, bpm)

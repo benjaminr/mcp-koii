@@ -110,6 +110,7 @@ sources and what has been checked on hardware, are in **[DEVICE.md](DEVICE.md)**
 | `audition` | hear one sound or pad |
 | `save_pattern`, `save_song`, `show`, `list_library`, `delete` | the library |
 | `export_midi` | write a `.mid` file (no device needed) |
+| `export_musicxml` | write sheet music for a pattern (MuseScore, Dorico, Sibelius…) |
 | `open_visualiser` | open the live browser view |
 | `show_kit`, `set_alias`, `remove_alias`, `list_factory_sounds` | the kit |
 
@@ -118,9 +119,13 @@ Prompts: `notation_guide`, `device_guide`, `make_a_beat`.
 ## Development
 
 ```bash
-uv pip install pytest
+uv pip install -r requirements-dev.txt
 .venv/bin/python -m pytest
 ```
+
+The tests check the notation from several sides: parser fuzzing, generated patterns whose
+sheet music must match what plays, MusicXML re-read by [music21](https://www.music21.org/),
+and a round trip through the browser editor's own JavaScript (needs Node).
 
 The code is in `koii/`: `notation` (parser), `sequence` (timing, swing, arrangements,
 MIDI files), `player` (background playback), `library` (persistence), `studio` (ties it

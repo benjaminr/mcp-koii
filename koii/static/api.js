@@ -43,3 +43,7 @@ export function listen(onEvent, onStatus) {
 export function midiUrl(what) {
   return `/api/midi?what=${encodeURIComponent(what)}`;
 }
+
+export function musicxmlUrl(what) {
+  return `/api/musicxml?what=${encodeURIComponent(what)}`;
+}
