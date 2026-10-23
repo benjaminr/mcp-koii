@@ -6,14 +6,18 @@ names, no device) are raised with messages written to be fixed from directly.
 """
 
 import atexit
+import functools
 import logging
+import os
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
+from typing import AsyncIterator, Optional
 
 from mcp.server.fastmcp import FastMCP
 
 from koii import device
 from koii.studio import Studio
+from koii.visualiser import DEFAULT_PORT, Visualiser, open_in_browser
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -36,40 +40,90 @@ Songs/arrangements: "intro x2, verse x4, verse+bassline x4, outro" (a+b layers p
 Workflow: check_pattern to validate without sound, play to listen (non-blocking; loop=True keeps going and a new
 play switches at the end of the current loop), save_pattern / save_song to keep work (persists across restarts),
 export_midi for a .mid file. Errors name the line and column; fix them and retry.
+
+Visualiser: a live browser view of the device, patterns, sheet music and everything you do here. open_visualiser
+opens it. Without a device, connect(port="simulator") plays sound in the browser instead.
 """
 
-server = FastMCP("koii", instructions=INSTRUCTIONS)
 studio = Studio()
+visualiser = Visualiser(studio, port=int(os.environ.get("KOII_WEB_PORT", DEFAULT_PORT)))
 atexit.register(lambda: studio.disconnect())
+
+
+@asynccontextmanager
+async def lifespan(app: FastMCP) -> AsyncIterator[None]:
+    """Run the visualiser alongside the MCP server (set KOII_WEB=off to disable it)."""
+    if os.environ.get("KOII_WEB", "on").lower() not in ("0", "off", "false", "no"):
+        try:
+            visualiser.start()
+        except OSError as e:
+            logging.getLogger(__name__).warning("visualiser not started: %s", e)
+    try:
+        yield
+    finally:
+        visualiser.stop()
+
+
+server = FastMCP("koii", instructions=INSTRUCTIONS, lifespan=lifespan)
+
+
+def tool(function):
+    """Register an MCP tool and show each call in the visualiser's activity feed."""
+
+    @functools.wraps(function)
+    def recorded(*args, **kwargs):
+        try:
+            result = function(*args, **kwargs)
+        except Exception as e:
+            studio.events.activity("claude", function.__name__, kwargs, error=str(e))
+            raise
+        summary = result.splitlines()[0] if isinstance(result, str) and result else None
+        studio.events.activity("claude", function.__name__, kwargs, result=summary)
+        return result
+
+    return server.tool()(recorded)
 
 
 # -- device -----------------------------------------------------------------
 
-@server.tool()
+@tool
+def open_visualiser(open_browser: bool = True) -> str:
+    """
+    Open the live visualiser in the browser: a KO II simulator, step grid, sheet music, loop editor,
+    library and a feed of what you're doing. Returns its URL.
+    """
+    url = visualiser.url or visualiser.start()
+    if open_browser:
+        open_in_browser(url)
+    return f"visualiser at {url}"
+
+
+@tool
 def list_midi_ports() -> list[str]:
     """List MIDI output ports on this computer."""
     return studio.list_ports()
 
 
-@server.tool()
+@tool
 def connect(port: Optional[str] = None, channel: int = 1) -> str:
     """
     Connect to the EP-133 (auto-detected) or to a named MIDI output port.
 
     Args:
-        port: Full or partial port name. Omit to find the EP-133 automatically.
+        port: Full or partial port name. Omit to find the EP-133 automatically. "simulator" plays in the
+            visualiser instead, for trying things without a device.
         channel: MIDI channel (1-16) for pad hits. The EP-133 receives on all channels by default.
     """
     return studio.connect(port, channel)
 
 
-@server.tool()
+@tool
 def disconnect() -> str:
     """Stop playback and close the MIDI connection."""
     return studio.disconnect()
 
 
-@server.tool()
+@tool
 def status() -> str:
     """Connection, what's playing, and what's saved."""
     port = getattr(studio.port, "name", None)
@@ -77,13 +131,14 @@ def status() -> str:
         f"device: {port + f' (channel {studio.channel})' if port else 'not connected'}",
         f"playing: {studio.player.status or 'nothing'}",
         f"library: {len(studio.library.patterns)} patterns, {len(studio.library.songs)} songs ({studio.library.path})",
+        f"visualiser: {visualiser.url or 'not running'}",
     ]
     return "\n".join(lines)
 
 
 # -- making music -----------------------------------------------------------
 
-@server.tool()
+@tool
 def check_pattern(text: str) -> str:
     """
     Validate pattern text without playing it. Returns a normalised view (sounds, pads, MIDI notes,
@@ -92,7 +147,7 @@ def check_pattern(text: str) -> str:
     return studio.check(text)
 
 
-@server.tool()
+@tool
 def play(what: str, repeat: int = 1, loop: bool = False, bpm: Optional[int] = None) -> str:
     """
     Play something on the EP-133. Returns immediately; playback continues in the background.
@@ -108,13 +163,13 @@ def play(what: str, repeat: int = 1, loop: bool = False, bpm: Optional[int] = No
     return studio.play(what, repeat, loop, bpm)
 
 
-@server.tool()
+@tool
 def stop() -> str:
     """Stop playback immediately."""
     return studio.stop()
 
 
-@server.tool()
+@tool
 def audition(sound: str, velocity: int = 100, note: Optional[str] = None) -> str:
     """
     Play a single hit to hear what a sound name or pad is (e.g. "kick", "A7", "36").
@@ -125,13 +180,13 @@ def audition(sound: str, velocity: int = 100, note: Optional[str] = None) -> str
 
 # -- library ----------------------------------------------------------------
 
-@server.tool()
+@tool
 def save_pattern(name: str, text: str) -> str:
     """Validate and save a pattern under a name (overwrites). Saved work persists across restarts."""
     return studio.save_pattern(name, text)
 
 
-@server.tool()
+@tool
 def save_song(name: str, arrangement: str, bpm: Optional[int] = None) -> str:
     """
     Save an arrangement of saved patterns as a song, e.g. "intro x2, verse x4, verse+bass x4, chorus x8, outro".
@@ -141,25 +196,25 @@ def save_song(name: str, arrangement: str, bpm: Optional[int] = None) -> str:
     return studio.save_song(name, arrangement, bpm)
 
 
-@server.tool()
+@tool
 def show(name: str) -> str:
     """Show a saved pattern's text and normalised view, or a song's arrangement and timings."""
     return studio.show(name)
 
 
-@server.tool()
+@tool
 def list_library() -> str:
     """List saved patterns and songs."""
     return studio.list_library()
 
 
-@server.tool()
+@tool
 def delete(name: str) -> str:
     """Delete a saved pattern or song."""
     return studio.delete(name)
 
 
-@server.tool()
+@tool
 def export_midi(what: str, filename: Optional[str] = None, bpm: Optional[int] = None) -> str:
     """
     Write a Standard MIDI File (.mid) of a pattern, saved name, layer or arrangement, for use in a DAW.
@@ -170,13 +225,13 @@ def export_midi(what: str, filename: Optional[str] = None, bpm: Optional[int] = 
 
 # -- kit --------------------------------------------------------------------
 
-@server.tool()
+@tool
 def show_kit() -> str:
     """Every pad with its MIDI note, factory Project 1 sound, and the aliases that point at it."""
     return studio.show_kit()
 
 
-@server.tool()
+@tool
 def set_alias(name: str, target: str) -> str:
     """
     Name a sound so patterns can use it, e.g. set_alias("cowbell", "A7") or set_alias("bass", "ch2")
@@ -185,13 +240,13 @@ def set_alias(name: str, target: str) -> str:
     return studio.set_alias(name, target)
 
 
-@server.tool()
+@tool
 def remove_alias(name: str) -> str:
     """Remove an alias you set (built-in aliases revert to their default)."""
     return studio.remove_alias(name)
 
 
-@server.tool()
+@tool
 def list_factory_sounds(category: Optional[str] = None) -> dict:
     """
     The EP-133 factory sound list (community-transcribed from the device; not an official TE list).

@@ -99,6 +99,7 @@ class Pattern:
     grid: str = "1/16"
     source: str = ""
     warnings: List[str] = field(default_factory=list)
+    maps: Dict[str, str] = field(default_factory=dict)  # @map name -> target label
 
     @property
     def step_beats(self) -> Fraction:
@@ -360,7 +361,13 @@ def parse_pattern(text: str, aliases: Optional[Dict[str, str]] = None) -> Patter
         grid=settings.get("grid", "1/16"),
         source=text,
         warnings=_pad_collision_warnings(tracks.values()),
+        maps={name: _target_text(target) for name, target in maps.items()},
     )
+
+
+def _target_text(target: Target) -> str:
+    """How a target is written in a pattern: a pad label, a MIDI note number or chN."""
+    return str(target.note) if target.kind == "note" and target.label == str(target.note) else target.label
 
 
 def _pad_collision_warnings(tracks) -> List[str]:
@@ -416,6 +423,38 @@ def render_pattern(pattern: Pattern) -> str:
         lines.append(row)
     lines.extend(f"warning: {w}" for w in pattern.warnings)
     return "\n".join(lines)
+
+
+def pattern_to_dict(pattern: Pattern) -> Dict:
+    """A JSON-friendly description of a parsed pattern, for the visualiser."""
+    return {
+        "bpm": pattern.bpm,
+        "swing": pattern.swing,
+        "grid": pattern.grid,
+        "steps_per_beat": GRIDS[pattern.grid][1],
+        "step_beats": float(pattern.step_beats),
+        "length": pattern.length,
+        "beats": float(pattern.length_beats),
+        "maps": dict(pattern.maps),
+        "warnings": list(pattern.warnings),
+        "source": pattern.source,
+        "tracks": [
+            {
+                "name": track.name,
+                "target": {
+                    "kind": track.target.kind,
+                    "label": track.target.label,
+                    "note": track.target.note,
+                    "channel": track.target.channel,
+                },
+                "symbols": list(track.symbols),
+                "notes": ["+".join(note_name(n) for n in chord) for chord in track.notes],
+                "midi_notes": [list(chord) for chord in track.notes],
+                "line": track.line,
+            }
+            for track in pattern.tracks
+        ],
+    }
 
 
 # ---------------------------------------------------------------------------

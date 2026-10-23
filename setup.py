@@ -8,6 +8,7 @@ setup(
     author="Ben Rowell",
     packages=find_packages(exclude=["tests"]),
     py_modules=["koii_server"],
+    package_data={"koii": ["static/*"]},
     python_requires=">=3.9",
     install_requires=[
         "mido>=1.2.10",
@@ -17,6 +18,7 @@ setup(
     entry_points={
         "console_scripts": [
             "koii-server=koii.server:main",
+            "koii-visualiser=koii.visualiser:main",
         ],
     },
     classifiers=[

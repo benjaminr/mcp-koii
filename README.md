@@ -41,7 +41,7 @@ For Claude Code: `claude mcp add koii -- /path/to/mcp-koii/.venv/bin/python /pat
 Ask Claude something like *"connect to my K.O. II and let's make a slow boom-bap beat"*,
 or use the `make_a_beat` prompt. A typical session:
 
-1. `connect()`: finds the EP-133 automatically.
+1. `connect()`: finds the EP-133 automatically. `open_visualiser()` shows it all live.
 2. Claude writes a pattern, checks it with `check_pattern`, and runs `play(..., loop=True)`.
 3. You say what to change. Each new `play` switches **at the end of the current loop**,
    so the groove never stops while you iterate.
@@ -49,6 +49,31 @@ or use the `make_a_beat` prompt. A typical session:
 5. `save_song("track", "intro x2, verse x4, verse+bassline x4, chorus x8, outro")` and
    `play("track")`.
 6. `export_midi("track")` writes a `.mid` file for your DAW.
+
+## The visualiser
+
+The server also runs a live page at **http://127.0.0.1:8133** (ask Claude to `open_visualiser`).
+It shows everything that happens, whoever does it: Claude's tool calls, your edits, and
+pads you press on the device.
+
+- **KO II simulator:** pads light as notes play (orange) and when you press them on the
+  device (blue); the display shows bar and beat. Click a pad to hear it.
+- **Pattern editor** with three views of the same pattern:
+  - **Grid:** a step sequencer. Paint with brushes (hit, accent, ghost, levels 1–9, hold,
+    rest); shift-drag holds, right-click erases. Add tracks and bars, type basslines.
+  - **Text:** the notation itself, checked as you type, with clickable errors.
+  - **Notation:** sheet music, with a drum staff and a bass or treble staff for pitched tracks.
+- **Loop building:** Play, Loop and Stop; turn on **Live edit** and every change switches
+  in at the end of the current pass. Undo and redo (⌘Z / ⇧⌘Z); Space plays and stops.
+- **Library and arranger:** open, play, loop and delete saved patterns, build songs on a
+  timeline, and download `.mid` files.
+- **Activity:** each MCP call Claude makes, with **Open in editor** for its patterns.
+- **No device?** Choose *Browser simulator* (top right) and the page plays synthesised
+  drums and bass itself.
+
+To run it without Claude: `python -m koii.visualiser` (or `koii-visualiser`). Settings:
+`KOII_WEB_PORT` (default 8133; the next free port is used if it's taken) and `KOII_WEB=off`
+to disable it. It only listens on localhost and ignores commands from other websites.
 
 ## The notation
 
@@ -85,6 +110,7 @@ sources and what has been checked on hardware, are in **[DEVICE.md](DEVICE.md)**
 | `audition` | hear one sound or pad |
 | `save_pattern`, `save_song`, `show`, `list_library`, `delete` | the library |
 | `export_midi` | write a `.mid` file (no device needed) |
+| `open_visualiser` | open the live browser view |
 | `show_kit`, `set_alias`, `remove_alias`, `list_factory_sounds` | the kit |
 
 Prompts: `notation_guide`, `device_guide`, `make_a_beat`.
@@ -98,7 +124,8 @@ uv pip install pytest
 
 The code is in `koii/`: `notation` (parser), `sequence` (timing, swing, arrangements,
 MIDI files), `player` (background playback), `library` (persistence), `studio` (ties it
-together) and `server` (MCP tools). Set `KOII_HOME` to keep the library somewhere else.
+together), `events` (live updates), `visualiser` (the web server, with the page in
+`koii/static/`) and `server` (MCP tools). Set `KOII_HOME` to keep the library somewhere else.
 
 ## Acknowledgements
 

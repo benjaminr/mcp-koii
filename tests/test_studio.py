@@ -2,6 +2,7 @@ import json
 import threading
 import time
 
+import mido
 import pytest
 
 from koii.library import Library, LibraryError
@@ -31,10 +32,29 @@ def port():
     return FakePort()
 
 
+class FakeInput:
+    def __init__(self, name, callback):
+        self.name = name
+        self.callback = callback
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
 @pytest.fixture
-def studio(tmp_path, port):
+def inputs():
+    return []
+
+
+@pytest.fixture
+def studio(tmp_path, port, inputs):
+    def open_input(name, callback):
+        inputs.append(FakeInput(name, callback))
+        return inputs[-1]
+
     s = Studio(library=Library(tmp_path), open_output=lambda name: port,
-               list_outputs=lambda: ["IAC Bus", port.name])
+               list_outputs=lambda: ["IAC Bus", port.name], open_input=open_input)
     yield s
     s.disconnect()
 
@@ -50,7 +70,8 @@ def test_finds_the_ep133_among_other_ports(studio):
 
 
 def test_connect_explains_what_went_wrong(tmp_path):
-    s = Studio(library=Library(tmp_path), open_output=lambda n: FakePort(), list_outputs=lambda: ["IAC Bus"])
+    s = Studio(library=Library(tmp_path), open_output=lambda n: FakePort(), list_outputs=lambda: ["IAC Bus"],
+               open_input=None)
     with pytest.raises(NotConnected, match="couldn't spot the EP-133"):
         s.connect()
     with pytest.raises(NotConnected, match="no MIDI output matching"):
@@ -61,7 +82,7 @@ def test_connect_explains_what_went_wrong(tmp_path):
 def test_midi_system_errors_are_readable(tmp_path):
     def broken():
         raise SystemError("MidiInAlsa::initialize: error creating ALSA sequencer client object.")
-    s = Studio(library=Library(tmp_path), list_outputs=broken)
+    s = Studio(library=Library(tmp_path), list_outputs=broken, open_input=None)
     with pytest.raises(NotConnected, match="couldn't query MIDI ports"):
         s.connect()
 
@@ -206,3 +227,61 @@ def test_play_summary_counts_repeats(studio):
     out = studio.play("kick: x...x...x...x...", repeat=3)
     studio.stop()
     assert "pattern ×3" in out and "total 6.0s" in out
+
+
+def test_pads_pressed_on_the_device_are_reported(studio, inputs):
+    studio.connect()
+    events = studio.events.subscribe()
+    (device_input,) = inputs
+    assert device_input.name == "EP-133"
+    device_input.callback(mido.Message("note_on", note=37, velocity=100))
+    device_input.callback(mido.Message("clock"))
+    event = events.get(timeout=1)
+    assert (event["type"], event["note"], event["on"]) == ("device_note", 37, True)
+    assert events.empty()
+    studio.disconnect()
+    assert device_input.closed
+
+
+def test_simulator_connection_needs_no_hardware(tmp_path):
+    s = Studio(library=Library(tmp_path), list_outputs=lambda: [], open_input=None)
+    assert "simulator" in s.connect("simulator")
+    assert s.connection_state()["simulated"]
+    s.play("@bpm 300\nkick: x...")
+    assert s.player.wait(5)
+
+
+def test_playback_reports_notes_and_passes(studio):
+    studio.connect()
+    events = studio.events.subscribe()
+    studio.save_pattern("v", "@bpm 300\nkick: x.x.")
+    studio.play("v x2")
+    studio.player.wait(5)
+    seen = []
+    while not events.empty():
+        seen.append(events.get())
+    passes = [e for e in seen if e["type"] == "pass"]
+    assert len(passes) == 1
+    info = passes[0]["info"]
+    assert info["order"] == [0, 0] and info["sections"][0]["patterns"][0]["name"] == "v"
+    assert sum(1 for e in seen if e["type"] == "note" and e["on"]) == 4
+    assert seen[-1]["type"] == "stopped"
+
+
+def test_audition_does_not_interrupt_a_loop(studio, port):
+    studio.connect()
+    studio.play("@bpm 300\nkick: x...", loop=True)
+    studio.audition("snare")
+    time.sleep(0.3)
+    assert "looping" in studio.player.status
+    assert 39 in [m.note for m in note_ons(port)]
+
+
+def test_a_page_opened_mid_loop_can_see_the_current_pass(studio):
+    studio.connect()
+    assert studio.events.current_pass() is None
+    studio.play("@bpm 300\nkick: x...", loop=True)
+    time.sleep(0.1)
+    assert studio.events.current_pass()["loop"] is True
+    studio.stop()
+    assert studio.events.current_pass() is None

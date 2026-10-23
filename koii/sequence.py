@@ -32,6 +32,7 @@ class Section:
     bpm: int
     length_beats: Fraction
     events: List[Event] = field(default_factory=list)
+    patterns: List[Tuple[str, Pattern]] = field(default_factory=list)
 
     @property
     def seconds(self) -> float:
@@ -92,7 +93,8 @@ def layer(patterns: List[Tuple[str, Pattern]], bpm: Optional[int] = None) -> Sec
         events.extend(compile_pattern(p, cycles=int(longest / p.length_beats)))
     events.sort(key=lambda e: (e.beat, e.kind, e.note))
     label = "+".join(name for name, _ in patterns)
-    return Section(label=label, bpm=bpm or patterns[0][1].bpm, length_beats=longest, events=events)
+    return Section(label=label, bpm=bpm or patterns[0][1].bpm, length_beats=longest, events=events,
+                   patterns=list(patterns))
 
 
 def expand(

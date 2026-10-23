@@ -4,18 +4,27 @@ Background MIDI playback with drift-free timing, looping and seamless switching.
 Events are scheduled against absolute monotonic times (not sleep-per-step), so
 timing errors don't accumulate. Playback runs on its own thread so the MCP
 server stays responsive: you can keep talking, queue the next pattern, or stop.
+
+The optional `notify(event_type, **data)` callback reports what's happening
+(notes, the start of each pass, stops) for the visualiser.
 """
 
 import threading
 import time
-from dataclasses import dataclass
-from typing import Callable, List, Optional, Set, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import mido
 
 from koii.sequence import Section, timeline
 
 _SPIN_SECONDS = 0.002  # sleep until this close to an event, then spin for precision
+
+Notify = Callable[..., Any]
+
+
+def _ignore(event_type: str, **data: Any) -> None:
+    pass
 
 
 @dataclass
@@ -24,12 +33,15 @@ class _Program:
     events: List[Tuple[float, mido.Message]]
     duration: float
     loop: bool
+    info: Dict[str, Any] = field(default_factory=dict)
 
 
 class Player:
-    def __init__(self, send: Callable[[mido.Message], None], clock: Callable[[], float] = time.perf_counter):
+    def __init__(self, send: Callable[[mido.Message], None], clock: Callable[[], float] = time.perf_counter,
+                 notify: Optional[Notify] = None):
         self._send = send
         self._clock = clock
+        self._notify = notify or _ignore
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -41,21 +53,25 @@ class Player:
 
     # -- public API ---------------------------------------------------------
 
-    def play(self, sections: List[Section], default_channel: int, loop: bool, label: str) -> str:
+    def play(self, sections: List[Section], default_channel: int, loop: bool, label: str,
+             info: Optional[Dict[str, Any]] = None) -> str:
         """
         Start playing. If something is looping, the new material replaces it at the
         end of the current pass (seamless switch) and keeps looping; otherwise it
-        starts now.
+        starts now. `info` is passed through to pass notifications.
         """
         events, duration = timeline(sections, default_channel)
-        program = _Program(label=label, events=events, duration=duration, loop=loop)
+        program = _Program(label=label, events=events, duration=duration, loop=loop, info=info or {})
         with self._lock:
             running = self._thread is not None and self._thread.is_alive()
-            if running and self._current is not None and self._current.loop:
+            queued_behind = self._current if running and self._current is not None and self._current.loop else None
+            if queued_behind:
                 program.loop = True
                 self._pending = program
-                remaining = self._cycle_start + self._current.duration - self._clock()
-                return f"queued '{label}' to start when the current loop of '{self._current.label}' ends (in {max(0.0, remaining):.1f}s)"
+                remaining = max(0.0, self._cycle_start + queued_behind.duration - self._clock())
+        if queued_behind:
+            self._notify("queued", label=label, starts_in=remaining)
+            return f"queued '{label}' to start when the current loop of '{queued_behind.label}' ends (in {remaining:.1f}s)"
         self.stop()
         with self._lock:
             self._current = program
@@ -114,16 +130,25 @@ class Player:
 
     def _emit(self, msg: mido.Message) -> None:
         key = (msg.channel, msg.note)
-        if msg.type == "note_on" and msg.velocity > 0:
+        is_on = msg.type == "note_on" and msg.velocity > 0
+        if is_on:
             self._active.add(key)
         else:
             self._active.discard(key)
         self._send(msg)
+        self._notify("note", on=is_on, note=msg.note, channel=msg.channel + 1, velocity=msg.velocity)
 
     def _release_all(self) -> None:
         for channel, note in sorted(self._active):
             self._send(mido.Message("note_off", note=note, velocity=0, channel=channel))
+            self._notify("note", on=False, note=note, channel=channel + 1, velocity=0)
         self._active.clear()
+
+    def _announce_pass(self, program: _Program, start: float) -> None:
+        # Convert the monotonic start time to wall-clock time, which browsers share.
+        started_at = time.time() - (self._clock() - start)
+        self._notify("pass", label=program.label, started_at=started_at, duration=program.duration,
+                     loop=program.loop, number=self._cycles + 1, info=program.info)
 
     def _run(self) -> None:
         start = self._clock()
@@ -134,6 +159,7 @@ class Player:
                     self._cycle_start = start
                 if program is None:
                     return
+                self._announce_pass(program, start)
                 for at, msg in program.events:
                     if not self._wait_until(start + at):
                         return
@@ -155,3 +181,4 @@ class Player:
             with self._lock:
                 self._current = None
                 self._pending = None
+            self._notify("stopped")
