@@ -61,7 +61,7 @@ WRITE_TIMEOUT_SECONDS = 15.0
 PREFLIGHT_SECONDS = 1.2       # a stuck device sends a debug frame about once a second
 PUT_PAGE_PAUSE_SECONDS = 0.006
 SOUND_CREATE_FLAGS = 0x05     # READ | FILE; sample slots are plain files
-SAMPLE_NAME_LIMIT = 20
+SAMPLE_NAME_LIMIT = 16   # OS 2.5 refuses longer names with "invalid length" (tested)
 
 
 class DeviceFileError(RuntimeError):
@@ -545,7 +545,7 @@ class DeviceFiles:
 
 
 def clean_sample_name(name: str) -> str:
-    """Sample names are at most 20 ASCII characters."""
+    """Sample names are at most 16 ASCII characters (the device refuses longer ones)."""
     cleaned = "".join(c if 32 <= ord(c) < 127 else "_" for c in name).strip()
     return (cleaned or "koii sound")[:SAMPLE_NAME_LIMIT]
 

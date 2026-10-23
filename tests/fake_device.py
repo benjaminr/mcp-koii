@@ -123,6 +123,8 @@ class FakeEP133:
                                 "sound.pitch": defaults.get("sound.pitch", 0.0)})
                 self.pads[node] = {**pad, **values}
                 return 0, b""
+            if len(str(values.get("name", ""))) > 16:   # like OS 2.5
+                return 1, b"invalid length"
             name, data, metadata = self.sounds[node]
             self.sounds[node] = (name, data, {**metadata, **values})
             return 0, b""

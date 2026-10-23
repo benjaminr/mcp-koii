@@ -17,6 +17,7 @@ import json
 import logging
 import threading
 import time
+import zlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -119,10 +120,12 @@ class DeviceLibrary:
         self.uploads_path.write_text(json.dumps({str(k): v for k, v in sorted(uploads.items())}, indent=2))
 
     def _ours(self, slot: int, sounds: List[Sound]) -> bool:
-        """True if the slot holds exactly the sound koii uploaded there."""
+        """True if the slot holds exactly the sound koii uploaded there (or left there unfinished)."""
         entry = self.uploads().get(slot)
         current = next((s for s in sounds if s.slot == slot), None)
-        return bool(entry and current and current.crc is not None and current.crc == entry.get("crc"))
+        if not (entry and current and current.crc is not None):
+            return False
+        return current.crc in (entry.get("crc"), entry.get("device_crc"))
 
     def suggest_slot(self) -> int:
         """The first empty slot from FIRST_SUGGESTED_SLOT, else the first empty one."""
@@ -157,7 +160,22 @@ class DeviceLibrary:
         def progress(done: int, total: int) -> None:
             self.events.publish("upload", stage="writing", slot=slot, done=done, total=total)
 
-        sound = self.client.upload_sound(slot, pcm, name, channels, progress, settings)
+        try:
+            sound = self.client.upload_sound(slot, pcm, name, channels, progress, settings)
+        except DeviceFileError:
+            # The audio may already be in the slot even though a later step failed. Mark it as koii's
+            # (unfinished), so it can be retried or deleted instead of being stranded as someone else's.
+            self._sounds = None
+            entry = {"name": clean_sample_name(name), "crc": zlib.crc32(pcm), "unfinished": True,
+                     "uploaded": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+            try:   # what the device holds now, in case the audio arrived damaged
+                entry["device_crc"] = self.client.sound_metadata(slot).get("crc")
+            except DeviceFileError:
+                pass
+            uploads = self.uploads()
+            uploads[slot] = entry
+            self._save_uploads(uploads)
+            raise
         self._record_upload(sound)
         self._sounds = None
         self.events.publish("upload", stage="done", slot=slot, name=sound.name)

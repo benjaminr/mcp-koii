@@ -93,7 +93,10 @@ def test_a_corrupted_write_is_reported(setup, monkeypatch):
     monkeypatch.setattr(fake, "_handle", damage)
     with pytest.raises(DeviceFileError, match="didn't store the sound intact"):
         library.upload(601, tone(), "damaged")
-    assert 601 not in library.uploads()
+    assert library.uploads()[601]["unfinished"]            # not a finished upload …
+    monkeypatch.setattr(fake, "_handle", original)
+    library.upload(601, tone(), "redone")                   # … but koii may redo its own write
+    assert not library.uploads()[601].get("unfinished")
 
 
 def test_limits(setup):
@@ -105,4 +108,26 @@ def test_limits(setup):
         library.upload(601, b"", "empty")
     with pytest.raises(DeviceFileError, match="whole 16-bit frames"):
         client.upload_sound(601, b"\x00\x00\x00", "odd", channels=2)
-    assert files.clean_sample_name("ünïcode name that is far too long") == "_n_code name that is"
+    assert files.clean_sample_name("ünïcode name that is far too long") == "_n_code name tha"
+
+
+def test_long_names_are_shortened_to_what_the_device_accepts(setup):
+    fake, client, library, home = setup
+    backup_device(client, home / "backups")
+    library.upload(601, tone(), "apollo eagle has landed")
+    assert fake.sounds[601][2]["name"] == "apollo eagle has"      # 16 characters
+
+
+def test_an_upload_that_fails_after_writing_can_be_retried(setup, monkeypatch):
+    fake, client, library, home = setup
+    backup_device(client, home / "backups")
+    monkeypatch.setattr(files, "clean_sample_name", lambda name: name)   # let a too-long name through once
+    with pytest.raises(DeviceFileError, match="invalid length"):
+        library.upload(601, tone(), "a name far too long for it")
+    assert 601 in fake.sounds                                            # the audio arrived, unnamed
+    monkeypatch.undo()
+    for name in ("PAGE_PAUSE_SECONDS", "PUT_PAGE_PAUSE_SECONDS", "PREFLIGHT_SECONDS"):
+        monkeypatch.setattr(files, name, 0)
+    assert library.suggest_slot() != 601                                 # not offered as empty any more
+    library.upload(601, tone(), "retried")                               # but koii may finish its own upload
+    assert fake.sounds[601][2]["name"] == "retried"
