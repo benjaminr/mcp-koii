@@ -6,7 +6,7 @@ import { command } from "./api.js";
 import { pressedTwice } from "./design-controls.js";
 
 const $ = (id) => document.getElementById(id);
-const DEFAULT_PROJECT = 9;   // projects 6–9 start empty
+const EMPTY_PROJECTS = [9, 8, 7, 6];   // these start empty on the EP-133
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -44,6 +44,8 @@ export class PackList {
       list.replaceChildren(element("p", "hint", "No packs yet. Packs live in ~/.koii/packs; Claude can make one from a demo."));
       return;
     }
+    // Which project each installed pack occupies, so a new install doesn't land on one by default.
+    this.occupied = new Map(packs.filter((pack) => pack.installed).map((pack) => [pack.installed.project, pack]));
     list.replaceChildren(...packs.map((pack) => this.card(pack)));
   }
 
@@ -75,7 +77,8 @@ export class PackList {
     const project = element("select", "pack-project");
     project.setAttribute("aria-label", `Project to install ${pack.title} into`);
     for (let n = 1; n <= 9; n++) project.append(new Option(`project ${n}${n >= 6 ? " (starts empty)" : ""}`, String(n)));
-    project.value = String(pack.installed?.project ?? DEFAULT_PROJECT);
+    const free = EMPTY_PROJECTS.find((n) => !this.occupied.has(n)) ?? EMPTY_PROJECTS[0];
+    project.value = String(pack.installed?.project ?? free);
     const install = element("button", "btn primary small", pack.installed ? "reinstall" : "⤒ install");
     install.type = "button";
     install.title = "Upload its samples (reusing any already there), fill the project's pads, add its patterns and songs";
@@ -96,8 +99,12 @@ export class PackList {
 
   async install(pack, project, button) {
     if (this.busy) return this.toast("Wait for the pack that's loading to finish.", true);
-    // Projects 1–5 can hold your own pads: ask for a second press before replacing them.
-    if (project < 6 && !pressedTwice(button, `into ${project}?`)) {
+    // Ask for a second press before replacing another pack's pads, or pads that may be your own (projects 1–5).
+    const other = this.occupied.get(project);
+    if (other && other.name !== pack.name && !pressedTwice(button, `replace ${other.title}?`)) {
+      return this.toast(`Project ${project} holds ${other.title}: press again to replace its pads.`);
+    }
+    if (!other && project < 6 && !pressedTwice(button, `into ${project}?`)) {
       return this.toast(`Project ${project} may already have sounds on its pads: press again to replace them.`);
     }
     try {
