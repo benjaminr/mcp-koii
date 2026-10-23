@@ -42,6 +42,11 @@
     </div>
     <button id="sound-btn" class="btn toggle" type="button" title="Play sounds in this browser (simulator voices)"><span class="led"></span>browser sound</button>
     <button id="layout-btn" class="btn toggle" type="button" aria-pressed="false" title="Move, resize and hide the modules"><span class="led"></span>layout</button>
+    <button id="live-strip" class="live-strip" type="button" aria-pressed="false" title="What the EP-133 is playing, live. Click to start or stop listening">
+      <span class="strip-tag">in</span>
+      <canvas id="strip-canvas" aria-hidden="true"></canvas>
+      <span id="strip-status" class="strip-status">not listening</span>
+    </button>
     <div id="layout-bar" class="layout-bar" hidden>
       <span class="layout-bar-title">editing the layout</span>
       <span class="layout-bar-help">drag a header to move it · drag the corner to resize (double-click it to fit) · drag the dotted line to split · <b>▾</b> collapses</span>

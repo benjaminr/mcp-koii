@@ -11,11 +11,12 @@ import { Notation } from "./notation.js";
 import { roleForName, roleForPad, roleForTrack } from "./roles.js";
 import { SoundDesigner } from "./designer.js";
 import { SampleBrowser } from "./samples.js";
-import { SoundScope } from "./sound.js";
+import { SoundScope, permittedDeviceInput } from "./sound.js";
 
 const $ = (selector) => document.querySelector(selector);
 const STORAGE_KEY = "koii.editor";
 const KEY_STORAGE_KEY = "koii.grid-key";
+const LISTEN_STORAGE_KEY = "koii.sound.listen";
 const CHECK_DELAY_MS = 250;
 const LIVE_DELAY_MS = 300;
 const ARRANGEMENT_DELAY_MS = 350;
@@ -102,10 +103,13 @@ const sound = new SoundScope({
   meters: $("#meters-canvas"),
   balance: $("#balance-canvas"),
   readout: $("#sound-readout"),
+  strip: $("#strip-canvas"),
 }, (status) => {
   $("#sound-status").textContent = status.text;
   $("#sound-status").classList.toggle("on", status.listening);
   $("#listen-btn").setAttribute("aria-pressed", String(status.listening));
+  $("#live-strip").setAttribute("aria-pressed", String(status.listening));
+  $("#strip-status").textContent = status.listening ? status.label : "click to listen";
 });
 
 // -- small helpers --------------------------------------------------------------
@@ -777,7 +781,8 @@ function bindControls() {
     if (value) editModel((m) => model.addTrack(m, value, value.startsWith("ch")));
   });
 
-  $("#listen-btn").addEventListener("click", () => (sound.running ? sound.stop() : startListening()));
+  $("#listen-btn").addEventListener("click", toggleListening);
+  $("#live-strip").addEventListener("click", toggleListening);
   $("#sound-source").addEventListener("change", () => {
     if (sound.running) startListening();
   });
@@ -810,6 +815,42 @@ function bindControls() {
 }
 
 // -- sound -----------------------------------------------------------------------------
+
+/** Listening is on by default; stopping it by hand keeps it off on later visits. */
+function toggleListening() {
+  const listen = !sound.running;
+  try {
+    localStorage.setItem(LISTEN_STORAGE_KEY, listen ? "on" : "off");
+  } catch {
+    // Not remembered; listening still starts and stops.
+  }
+  if (listen) startListening();
+  else sound.stop();
+}
+
+/**
+ * Start listening to the EP-133 without asking: only when the browser already may use
+ * audio inputs and the EP-133's is there. Otherwise the strip offers a click. Tries again
+ * when audio devices change, e.g. when the EP-133 is plugged in.
+ */
+async function listenIfAllowed() {
+  let choice = null;
+  try {
+    choice = localStorage.getItem(LISTEN_STORAGE_KEY);
+  } catch {
+    choice = null;
+  }
+  if (choice === "off" || sound.running || $("#sound-source").value !== "device") return;
+  const { permission, device } = await permittedDeviceInput();
+  if (device) {
+    await sound.listenToInput(device.deviceId).catch((error) => {
+      $("#strip-status").textContent = `couldn't listen: ${error.message}`;
+    });
+    return;
+  }
+  $("#strip-status").textContent = permission === "granted" ? "EP-133 audio not found"
+    : permission === "denied" ? "audio input blocked in site settings" : "click to listen";
+}
 
 async function startListening() {
   const source = $("#sound-source").value;
@@ -860,7 +901,16 @@ function setupKey() {
   toggle.addEventListener("click", () => show(key.hidden));
 }
 
+/** Things that stick below the top bar need its height, which changes as it wraps. */
+function trackTopBarHeight() {
+  const bar = $(".topbar");
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty("--topbar-height", `${bar.offsetHeight}px`);
+  }).observe(bar);
+}
+
 function start() {
+  trackTopBarHeight();
   new LayoutEditor({ page: $(".layout"), bar: $("#layout-bar"), toggle: $("#layout-btn") });
   setupKey();
   renderBrushes();
@@ -877,6 +927,8 @@ function start() {
   });
   requestAnimationFrame(frame);
   designer.start().catch((error) => toast(`The sound designer couldn't start: ${error.message}`, true));
+  listenIfAllowed();
+  navigator.mediaDevices?.addEventListener?.("devicechange", () => listenIfAllowed());
 }
 
 start();

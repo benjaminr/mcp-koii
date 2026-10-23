@@ -73,6 +73,10 @@ pads you press on the device.
   actually plays: oscilloscope, spectrum, a spectrogram marked with beats and bars, stereo
   level meters (dBFS, peak hold, clip) and a four-band balance view. It only listens; the
   browser asks once for permission. It can also analyse the browser simulator's voices.
+  A **live strip** in the top bar (spectrum and stereo meters) is always in view. Once the
+  browser may use the EP-133's audio input, listening starts by itself whenever the
+  EP-133 is plugged in; it never falls back to your microphone. Click the strip to stop or
+  start it; stopping it keeps it off on later visits.
 - **Samples:** the EP-133's sample library (all 999 slots), with search, waveforms,
   metadata, play-on-device, WAV download and backups with progress. This uses the device's
   private file protocol as reverse-engineered by

@@ -625,7 +625,7 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .param.choice .slot-input { width: 64px; padding: 2px 6px; }
 
 /* Stays in view below the sticky top bar while a long layer stack scrolls past. */
-.designer-output { display: flex; flex-direction: column; gap: 10px; min-width: 0; position: sticky; top: 80px; }
+.designer-output { display: flex; flex-direction: column; gap: 10px; min-width: 0; position: sticky; top: calc(var(--topbar-height, 64px) + 16px); }
 .designer-output .screen-panel canvas { height: 150px; }
 .designer-screens { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .designer-screens .screen-panel canvas { height: 110px; }
@@ -753,3 +753,25 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 }
 .split-handle:hover, .splitting .split-handle { background-size: 4px 100%; }
 .splitting { user-select: none; cursor: col-resize; }
+
+/* -- the live strip ------------------------------------------------------------------- */
+
+.live-strip {
+  flex-basis: 100%; order: 10; display: flex; align-items: center; gap: 10px; min-width: 0;
+  margin: -4px 0 -2px; padding: 4px 10px 4px 4px; height: 52px;
+  background: var(--screen); color: var(--screen-text);
+  border: var(--line) solid var(--ink); border-radius: 3px; cursor: pointer; text-align: left;
+}
+.live-strip:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+.strip-tag {
+  font-family: var(--num); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+  background: var(--dim, #2a2724); color: #8f897e; padding: 1px 6px; border-radius: 2px;
+}
+.live-strip[aria-pressed="true"] .strip-tag { background: var(--signal); color: var(--ink); }
+.live-strip canvas { flex: 1; min-width: 0; height: 42px; display: block; }
+.strip-status {
+  font-family: var(--num); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #8f897e;
+  max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.live-strip[aria-pressed="true"] .strip-status { color: var(--screen-text); }
+.layout-bar { order: 11; }

@@ -23,6 +23,13 @@ const BALANCE_BANDS = [
 const FREQUENCY_LABELS = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
 const DEVICE_LABEL = /ep-?133|k\.?o/i;
 const STORAGE_KEY = "koii.sound.input";
+// The live strip in the top bar: LED columns of spectrum, then stereo meters.
+const STRIP_COLUMN_PX = 5;
+const STRIP_SEGMENT_PX = 3;
+const STRIP_FLOOR_DB = -90;      // a little hotter than the spectrum screen, so quiet sounds still show
+const STRIP_CEILING_DB = -20;
+const STRIP_METER_PX = 150;
+const STRIP_METER_SEGMENTS = 24;
 
 /**
  * Open an audio input, preferring the EP-133 (found by name once permission is granted).
@@ -45,6 +52,23 @@ export async function openDeviceInput(deviceId) {
   }
   rememberInput(stream.getAudioTracks()[0].getSettings().deviceId);
   return { stream, inputs };
+}
+
+/**
+ * The EP-133's audio input, found without asking for anything: only when the browser
+ * already may use audio inputs (so no permission prompt) and the EP-133 is among them.
+ * Returns { permission: "granted" | "prompt" | "denied" | "unknown", device }.
+ */
+export async function permittedDeviceInput() {
+  let permission = "unknown";
+  try {
+    permission = (await navigator.permissions.query({ name: "microphone" })).state;
+  } catch {
+    // Some browsers can't say; then only a click starts listening.
+  }
+  if (permission !== "granted" || !navigator.mediaDevices?.enumerateDevices) return { permission, device: null };
+  const inputs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
+  return { permission, device: inputs.find((d) => DEVICE_LABEL.test(d.label)) || null };
 }
 
 function rememberedInput() {
@@ -72,20 +96,23 @@ function colour(name) {
 
 /** A canvas that keeps its backing store matched to its CSS size and the screen's pixel ratio. */
 class Surface {
-  constructor(canvas) {
+  /** onResize runs after the canvas changes size, e.g. to redraw it while nothing is playing. */
+  constructor(canvas, onResize) {
     this.canvas = canvas;
     this.context = canvas.getContext("2d");
     this.resize();
-    new ResizeObserver(() => this.resize()).observe(canvas);
+    new ResizeObserver(() => {
+      if (this.resize()) onResize?.();
+    }).observe(canvas);
   }
 
   resize() {
     const ratio = window.devicePixelRatio || 1;
     const { width, height } = this.canvas.getBoundingClientRect();
-    if (!width || !height) return;
+    if (!width || !height) return false;
     const w = Math.round(width * ratio);
     const h = Math.round(height * ratio);
-    if (this.canvas.width === w && this.canvas.height === h) return;
+    if (this.canvas.width === w && this.canvas.height === h) return false;
     this.canvas.width = w;
     this.canvas.height = h;
     this.ratio = ratio;
@@ -93,19 +120,25 @@ class Surface {
     this.height = height;
     this.context.setTransform(ratio, 0, 0, ratio, 0, 0);
     this.fresh = true;
+    return true;
   }
 }
 
 export class SoundScope {
   /** elements: { scope, spectrum, spectrogram, meters, balance } canvases, plus status and readout elements. */
   constructor(elements, onChange) {
-    this.surfaces = {
-      scope: new Surface(elements.scope),
-      spectrum: new Surface(elements.spectrum),
-      spectrogram: new Surface(elements.spectrogram),
-      meters: new Surface(elements.meters),
-      balance: new Surface(elements.balance),
+    const redrawIdle = () => {
+      if (!this.running) this._idle();
     };
+    this.surfaces = {
+      scope: new Surface(elements.scope, redrawIdle),
+      spectrum: new Surface(elements.spectrum, redrawIdle),
+      spectrogram: new Surface(elements.spectrogram, redrawIdle),
+      meters: new Surface(elements.meters, redrawIdle),
+      balance: new Surface(elements.balance, redrawIdle),
+    };
+    if (elements.strip) this.surfaces.strip = new Surface(elements.strip, redrawIdle);
+    this.stripPeaks = new Float32Array(0);
     this.readout = elements.readout;
     this.onChange = onChange;
     this.running = false;
@@ -147,6 +180,12 @@ export class SoundScope {
     const { stream, inputs } = await openDeviceInput(deviceId);
     const track = stream.getAudioTracks()[0];
     const context = new AudioContext({ latencyHint: "interactive" });
+    // Started without a click, the browser may hold the context until the first one.
+    if (context.state === "suspended") {
+      const resume = () => context.resume();
+      document.addEventListener("pointerdown", resume, { once: true });
+      document.addEventListener("keydown", resume, { once: true });
+    }
     const source = context.createMediaStreamSource(stream);
     const settings = track.getSettings();
     this._connect(context, source, { owned: true, stream,
@@ -235,6 +274,7 @@ export class SoundScope {
     this._spectrogram(spectrum);
     this._meters(time, seconds);
     this._balance(spectrum);
+    this._strip(spectrum, seconds);
   }
 
   _clear(surface) {
@@ -254,6 +294,7 @@ export class SoundScope {
     }
     const spectrogram = this.surfaces.spectrogram;
     if (spectrogram.width) this._clear(spectrogram);
+    if (this.surfaces.strip?.width) this._strip(null, 0);
     if (this.readout) this.readout.textContent = "peak –∞ dB · rms –∞ dB";
   }
 
@@ -298,12 +339,12 @@ export class SoundScope {
     return Math.round((frequency / (this.graph.context.sampleRate / 2)) * this.graph.spectrum.length);
   }
 
-  _bands(spectrum) {
-    const bands = new Float32Array(SPECTRUM_BANDS);
+  _bands(spectrum, count = SPECTRUM_BANDS) {
+    const bands = new Float32Array(count);
     const ratio = HIGHEST_HZ / LOWEST_HZ;
-    for (let band = 0; band < SPECTRUM_BANDS; band++) {
-      const from = this._binFor(LOWEST_HZ * ratio ** (band / SPECTRUM_BANDS));
-      const to = Math.max(from + 1, this._binFor(LOWEST_HZ * ratio ** ((band + 1) / SPECTRUM_BANDS)));
+    for (let band = 0; band < count; band++) {
+      const from = this._binFor(LOWEST_HZ * ratio ** (band / count));
+      const to = Math.max(from + 1, this._binFor(LOWEST_HZ * ratio ** ((band + 1) / count)));
       let loudest = -Infinity;
       for (let bin = from; bin < to && bin < spectrum.length; bin++) loudest = Math.max(loudest, spectrum[bin]);
       bands[band] = loudest;
@@ -413,7 +454,7 @@ export class SoundScope {
         if (db >= hold.db) hold.held = now;
       }
       if (peak >= CLIP_LEVEL) hold.clip = now;
-      readings.push({ db, rms: toDb(rms) });
+      readings.push({ db, rms: toDb(rms), held: hold.db, clipping: now - hold.clip < PEAK_HOLD_SECONDS });
 
       const y = 4 + channel * (rowHeight + 4);
       context.fillStyle = this.colours.text;
@@ -437,12 +478,65 @@ export class SoundScope {
       const x = 18 + ((db - METER_FLOOR_DB) / -METER_FLOOR_DB) * segments * segmentWidth;
       context.fillText(String(db), Math.min(width - 22, x - 6), height - 4);
     }
+    this.levels = readings;
     if (this.readout) {
       const format = (value) => (Number.isFinite(value) ? value.toFixed(1) : "–∞");
       const peak = Math.max(readings[0].db, readings[1].db);
       const rms = Math.max(readings[0].rms, readings[1].rms);
       this.readout.textContent = `peak ${format(peak)} dB · rms ${format(rms)} dB`;
     }
+  }
+
+  /** The top bar's strip: spectrum as LED columns, then L and R meters. Silent and dim when idle. */
+  _strip(spectrum, seconds) {
+    const surface = this.surfaces.strip;
+    if (!surface?.width) return;
+    const { context, width, height } = surface;
+    this._clear(surface);
+    const meterLeft = width - STRIP_METER_PX;
+    const columns = Math.max(8, Math.floor((meterLeft - 12) / STRIP_COLUMN_PX));
+    const segments = Math.max(2, Math.floor((height - 4) / STRIP_SEGMENT_PX));
+    if (this.stripPeaks.length !== columns) this.stripPeaks = new Float32Array(columns).fill(SPECTRUM_FLOOR_DB);
+    const bands = spectrum ? this._bands(spectrum, columns) : null;
+    const level = (db) => clamp((db - STRIP_FLOOR_DB) / (STRIP_CEILING_DB - STRIP_FLOOR_DB), 0, 1);
+    for (let column = 0; column < columns; column++) {
+      const db = bands ? bands[column] : SPECTRUM_FLOOR_DB;
+      this.stripPeaks[column] = Math.max(this.stripPeaks[column] - PEAK_FALL_DB_PER_SECOND * seconds, db);
+      const lit = Math.round(level(db) * segments);
+      const peak = Math.min(segments - 1, Math.round(level(this.stripPeaks[column]) * segments) - 1);
+      const x = 2 + column * STRIP_COLUMN_PX;
+      for (let segment = 0; segment < segments; segment++) {
+        const y = height - 2 - (segment + 1) * STRIP_SEGMENT_PX + 1;
+        if (segment < lit) context.fillStyle = segment >= segments - 1 ? this.colours.text : this.colours.signal;
+        else context.fillStyle = segment === peak && bands ? this.colours.text : this.colours.dim;
+        context.fillRect(x, y, STRIP_COLUMN_PX - 1, STRIP_SEGMENT_PX - 1);
+      }
+    }
+
+    const rowHeight = Math.max(3, (height - 7) / 2);
+    const meterWidth = STRIP_METER_PX - 52;
+    const segmentWidth = meterWidth / STRIP_METER_SEGMENTS;
+    const readings = bands ? this.levels : null;
+    for (let channel = 0; channel < 2; channel++) {
+      const reading = readings?.[channel];
+      const y = 2 + channel * (rowHeight + 3);
+      const lit = reading ? clamp((reading.db - METER_FLOOR_DB) / -METER_FLOOR_DB, 0, 1) * STRIP_METER_SEGMENTS : 0;
+      const held = reading ? Math.floor(clamp((reading.held - METER_FLOOR_DB) / -METER_FLOOR_DB, 0, 1) * STRIP_METER_SEGMENTS) : -1;
+      for (let s = 0; s < STRIP_METER_SEGMENTS; s++) {
+        const segmentDb = METER_FLOOR_DB + (s / STRIP_METER_SEGMENTS) * -METER_FLOOR_DB;
+        const hot = segmentDb > -6 ? this.colours.signal : segmentDb > -18 ? this.colours.warn : this.colours.text;
+        context.fillStyle = s < lit || s === held ? hot : this.colours.dim;
+        context.fillRect(meterLeft + s * segmentWidth, y, segmentWidth - 1, rowHeight);
+      }
+      context.fillStyle = reading?.clipping ? this.colours.signal : this.colours.dim;
+      context.fillRect(meterLeft + meterWidth + 2, y, 4, rowHeight);
+    }
+    const peak = readings ? Math.max(readings[0].db, readings[1].db) : -Infinity;
+    context.fillStyle = bands ? this.colours.text : this.colours.dim;
+    context.font = "10px ui-monospace, monospace";
+    context.textAlign = "right";
+    context.fillText(Number.isFinite(peak) ? `${peak.toFixed(1)}` : "–∞", width - 4, height / 2 + 4);
+    context.textAlign = "left";
   }
 
   _balance(spectrum) {
