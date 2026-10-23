@@ -127,9 +127,20 @@ On hardware, a C3–G3 run on channel 2 played the bass *and* the group B pads a
 
 - Keep pitched notes below **C2** (note 36). Most basslines fit, and `check_pattern`
   warns about any note that clashes.
-- Set the system MIDI receive channel to **1** instead of "all" (SHIFT + ERASE for
-  system settings). Pads without their own channel then only hear channel 1, so drums
-  still work and pitched channels can use any note. *Not yet tested on hardware.*
+- Set the system MIDI channel to **1** instead of "all": with the EP-133 already on,
+  SHIFT + ERASE opens system settings; type **111** and ENTER (**110** puts the default
+  back). ⚠ Never hold SHIFT + ERASE while switching the EP-133 on: that formats it.
+  Pads without their own channel then only hear channel 1, so drums still work and
+  pitched channels can use any note. **Tested on hardware (OS 2.5):** with 111 set and a
+  keys pad on channel 3, four-note chords from D3 to C4 played only the keys, with no
+  drum pads firing on the shared note numbers.
+
+Each pad's channel, root note, play mode and level live in the project's pad records
+(see [ep-series-sysex's project format](https://github.com/kmorrill/ep-series-sysex)), so
+they could be written over the file protocol; koii doesn't do that yet. System settings
+such as 111 can't be reached over USB and are set by hand. A pad keeps its own copy of
+the level and play mode from when its sound was assigned, so changing a sample's
+settings later may not reach a pad that already uses it.
 
 KEYS mode does something similar on the device itself: it spreads the selected pad's
 sample chromatically across the 12 pads, and in that mode the EP-133 accepts the full
