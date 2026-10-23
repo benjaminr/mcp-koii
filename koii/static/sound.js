@@ -25,7 +25,7 @@ const DEVICE_LABEL = /ep-?133|k\.?o/i;
 const STORAGE_KEY = "koii.sound.input";
 // The live strip in the top bar: LED columns of spectrum, then stereo meters.
 const STRIP_COLUMN_PX = 5;
-const STRIP_SEGMENT_PX = 3;
+const STRIP_SEGMENT_PX = 4;
 const STRIP_FLOOR_DB = -90;      // a little hotter than the spectrum screen, so quiet sounds still show
 const STRIP_CEILING_DB = -20;
 const STRIP_METER_PX = 150;

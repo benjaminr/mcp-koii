@@ -758,7 +758,7 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 
 .live-strip {
   flex-basis: 100%; order: 10; display: flex; align-items: center; gap: 10px; min-width: 0;
-  margin: -4px 0 -2px; padding: 4px 10px 4px 4px; height: 52px;
+  margin: -4px 0 -2px; padding: 5px 10px 5px 4px; height: 74px;
   background: var(--screen); color: var(--screen-text);
   border: var(--line) solid var(--ink); border-radius: 3px; cursor: pointer; text-align: left;
 }
@@ -768,7 +768,7 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
   background: var(--dim, #2a2724); color: #8f897e; padding: 1px 6px; border-radius: 2px;
 }
 .live-strip[aria-pressed="true"] .strip-tag { background: var(--signal); color: var(--ink); }
-.live-strip canvas { flex: 1; min-width: 0; height: 42px; display: block; }
+.live-strip canvas { flex: 1; min-width: 0; height: 62px; display: block; }
 .strip-status {
   font-family: var(--num); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #8f897e;
   max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
