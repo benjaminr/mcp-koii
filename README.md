@@ -72,6 +72,11 @@ pads you press on the device.
   actually plays: oscilloscope, spectrum, a spectrogram marked with beats and bars, stereo
   level meters (dBFS, peak hold, clip) and a four-band balance view. It only listens; the
   browser asks once for permission. It can also analyse the browser simulator's voices.
+- **Samples:** the EP-133's sample library (all 999 slots), with search, waveforms,
+  metadata, play-on-device, WAV download and backups with progress. This uses the device's
+  private file protocol as reverse-engineered by
+  [ep-series-sysex](https://github.com/kmorrill/ep-series-sysex); close TE's EP Sample Tool
+  while using it, since the device handles one file session at a time.
 - **No device?** Choose *Browser simulator* (top right) and the page plays synthesised
   drums and bass itself.
 
@@ -115,6 +120,8 @@ sources and what has been checked on hardware, are in **[DEVICE.md](DEVICE.md)**
 | `save_pattern`, `save_song`, `show`, `list_library`, `delete` | the library |
 | `export_midi` | write a `.mid` file (no device needed) |
 | `export_musicxml` | write sheet music for a pattern (MuseScore, Dorico, Sibelius…) |
+| `list_device_sounds`, `play_sample` | the samples stored on the EP-133 |
+| `backup_device`, `cancel_backup` | copy every sample (WAV) and project to `~/.koii/backups` |
 | `open_visualiser` | open the live browser view |
 | `show_kit`, `set_alias`, `remove_alias`, `list_factory_sounds` | the kit |
 

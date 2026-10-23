@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 from urllib.parse import parse_qs, urlparse
 
+from koii.files import DeviceFileError
 from koii.library import LibraryError
 from koii.notation import NotationError
 from koii.studio import Studio
@@ -130,12 +131,17 @@ def _commands(studio: Studio) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
         "set_alias": lambda b: studio.set_alias(required(b, "name"), required(b, "target")),
         "remove_alias": lambda b: studio.remove_alias(required(b, "name")),
         "connect": lambda b: studio.connect(b.get("port") or None, int(b.get("channel", studio.channel))),
+        "samples": lambda b: studio.samples.listing(refresh=bool(b.get("refresh"))),
+        "play_sample": lambda b: studio.samples.audition(int(required(b, "slot"))),
+        "backup": lambda b: studio.samples.start_backup(),
+        "cancel_backup": lambda b: studio.samples.cancel_backup(),
+        "backup_status": lambda b: studio.samples.backup_status(),
         "disconnect": lambda b: studio.disconnect(),
     }
 
 
 # Commands that change something are shown in the activity feed.
-_QUIET_COMMANDS = {"check", "arrangement"}
+_QUIET_COMMANDS = {"check", "arrangement", "samples", "backup_status"}
 
 
 def full_state(studio: Studio) -> Dict[str, Any]:
@@ -214,6 +220,8 @@ def _make_handler(visualiser: Visualiser):
                 return self._download_midi(parse_qs(url.query))
             if url.path == "/api/musicxml":
                 return self._download_musicxml(parse_qs(url.query))
+            if url.path == "/api/sample.wav":
+                return self._download_sample(parse_qs(url.query))
             return self._serve_static(url.path)
 
         def _serve_static(self, path: str) -> None:
@@ -246,6 +254,15 @@ def _make_handler(visualiser: Visualiser):
                 return self._error(HTTPStatus.BAD_REQUEST, str(e))
             filename = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)[:60] or "pattern"
             self._send_bytes(xml.encode(), "application/vnd.recordare.musicxml+xml", f"{filename}.musicxml")
+
+        def _download_sample(self, query: Dict[str, list]) -> None:
+            try:
+                slot = int((query.get("slot") or ["0"])[0])
+                wav, name = studio.samples.wav(slot)
+            except (ValueError, DeviceFileError) as e:
+                return self._error(HTTPStatus.BAD_REQUEST, str(e))
+            filename = "".join(c if c.isalnum() or c in "-_" else "_" for c in f"{slot:03d} {name}")[:60]
+            self._send_bytes(wav, "audio/wav", f"{filename}.wav")
 
         def _stream_events(self) -> None:
             subscriber = studio.events.subscribe()
@@ -287,7 +304,7 @@ def _make_handler(visualiser: Visualiser):
                 self._record(name, body, error=str(e))
                 issues = [{"line": i.line, "column": i.column, "message": i.message} for i in e.issues]
                 return self._error(HTTPStatus.BAD_REQUEST, str(e), issues)
-            except (ValueError, LibraryError, _BadRequest) as e:
+            except (ValueError, LibraryError, _BadRequest, DeviceFileError) as e:
                 self._record(name, body, error=str(e))
                 return self._error(HTTPStatus.BAD_REQUEST, str(e))
             except Exception as e:  # keep the server alive and tell the page what broke

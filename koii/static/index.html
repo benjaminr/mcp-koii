@@ -153,6 +153,37 @@
       </div>
       <p class="hint">Listening only: nothing is played back. The EP-133 appears as a USB audio input; the browser asks once for permission to use it.</p>
     </section>
+
+    <section class="module samples-panel" aria-label="Samples">
+      <h2 class="module-head"><span class="module-index">07</span>samples</h2>
+      <div class="samples-head">
+        <button id="samples-load" class="btn" type="button" title="Read the sample library from the device">read library</button>
+        <input id="samples-search" class="name-input small" placeholder="search names or slots" spellcheck="false" aria-label="Search samples">
+        <span id="samples-summary" class="num samples-summary"></span>
+        <span class="memory">
+          <span class="memory-bar"><span id="memory-fill" class="memory-fill"></span></span>
+          <span id="memory-label" class="num memory-label"></span>
+        </span>
+        <button id="backup-btn" class="btn" type="button" title="Copy every sample and project to ~/.koii/backups (read-only on the device)">back up device</button>
+        <button id="backup-cancel" class="btn ghost" type="button" hidden>cancel</button>
+      </div>
+      <div id="backup-progress" class="backup-progress" hidden>
+        <div class="np-bar"><div id="backup-fill" class="np-fill"></div></div>
+        <span id="backup-text" class="backup-text"></span>
+      </div>
+      <div class="samples-body">
+        <div id="sample-list" class="sample-list"></div>
+        <div class="sample-detail">
+          <figure class="screen-panel"><figcaption id="sample-title">waveform</figcaption><canvas id="sample-wave"></canvas></figure>
+          <dl id="sample-meta" class="sample-facts"></dl>
+          <div class="row">
+            <button id="sample-play" class="btn primary" type="button">▶ play on device</button>
+            <a id="sample-download" class="btn ghost" title="Download as WAV">⤓ wav</a>
+          </div>
+        </div>
+      </div>
+      <p class="hint">Uses the EP-133's private file protocol, one session at a time. Close TE's EP Sample Tool while you use this. Reading only: nothing on the device is changed.</p>
+    </section>
   </main>
 
   <div id="toast" class="toast" role="status" hidden></div>

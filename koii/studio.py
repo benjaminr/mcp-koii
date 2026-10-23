@@ -21,6 +21,7 @@ from koii.notation import (
     NotationError, looks_like_pattern, note_name, parse_target, pattern_to_dict, render_pattern,
 )
 from koii.player import Player
+from koii.samples import DeviceLibrary
 from koii.score import build_score, score_to_dict, score_to_musicxml
 from koii.sequence import Section, expand, layer, to_midi_file, total_seconds
 
@@ -64,6 +65,7 @@ class Studio:
         self.channel = device.DEFAULT_CHANNEL
         self._send_lock = threading.Lock()
         self.player = Player(self._send, notify=self.events.publish)
+        self.samples = DeviceLibrary(self.events, self.library.home)
 
     # -- connection ---------------------------------------------------------
 

@@ -8,6 +8,7 @@ import { BRUSHES, Grid } from "./grid.js";
 import * as model from "./model.js";
 import { Notation } from "./notation.js";
 import { roleForName, roleForPad, roleForTrack } from "./roles.js";
+import { SampleBrowser } from "./samples.js";
 import { SoundScope } from "./sound.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -74,6 +75,14 @@ const grid = new Grid($("#grid"), {
   onNotes: (index, text) => editModel((m) => { m.tracks[index].notes = text; }),
 });
 const notation = new Notation($("#notation"), $("#notation-legend"));
+const samples = new SampleBrowser({
+  load: $("#samples-load"), search: $("#samples-search"), summary: $("#samples-summary"),
+  memory: $("#memory-fill"), memoryLabel: $("#memory-label"), list: $("#sample-list"),
+  title: $("#sample-title"), meta: $("#sample-meta"), wave: $("#sample-wave"),
+  play: $("#sample-play"), download: $("#sample-download"),
+  backup: $("#backup-btn"), cancel: $("#backup-cancel"), progress: $("#backup-progress"),
+  fill: $("#backup-fill"), text: $("#backup-text"),
+}, (message, isError) => toast(message, isError));
 const sound = new SoundScope({
   scope: $("#scope-canvas"),
   spectrum: $("#spectrum-canvas"),
@@ -383,6 +392,7 @@ function onEvent(event) {
       renderTimeline();
       return;
     case "activity": return addActivity(event);
+    case "backup": return samples.onBackup(event);
     case "connection":
     case "library":
       return refreshState();

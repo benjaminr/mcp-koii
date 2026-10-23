@@ -29,7 +29,12 @@ What this project relies on, where each fact comes from, and how sure we are.
 | Control | OS 2.5: CC 64 sustain for KEY/LEGATO pads; CC 12/13 drive FX X/Y | official | FX control planned |
 | Sync | MIDI clock in/out, sync 1/8, 1/16 or 24 PPQN, MIDI thru | official | koii plays notes itself and sends no clock |
 | Samples | 999 slots, 128 MB (64 MB on early units) | official | |
-| Samples | Stored as mono 16-bit at 46,875 Hz; transfer is proprietary SysEx | community, OS 2.5.1 | sample library planned |
+| Samples | Library read over the private file protocol (SysEx): list, metadata, download, audition | hardware (community protocol) | `list_device_sounds`, the samples module, backups |
+| Samples | Stored as 16-bit **little-endian** PCM at 46,875 Hz (mono on this unit's factory sounds) | hardware | downloads convert to WAV |
+| Samples | Each sample's `crc` metadata is a standard CRC-32 of its audio bytes | hardware | every download and backup is checked against it |
+| Samples | Reading runs at about 26 KB/s (about 20 minutes for 33 MB) | hardware | backups copy unchanged samples from the previous one |
+| Samples | Each sample has its own root note (e.g. slot 401 "s95x round" is F1, most are C4) | hardware | explains basslines sounding transposed |
+| Samples | The file system handles one session at a time; overlapping sessions freeze it until power-cycled | community | every session holds `/tmp/ep-device.lock` |
 | Sequencer | Patterns per group, bars per pattern, projects: sources conflict | unknown | doesn't apply: koii sequences live over MIDI |
 
 **Live MIDI versus the device's sequencer.** koii plays patterns from the computer, note by

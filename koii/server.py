@@ -132,6 +132,7 @@ def status() -> str:
         f"playing: {studio.player.status or 'nothing'}",
         f"library: {len(studio.library.patterns)} patterns, {len(studio.library.songs)} songs ({studio.library.path})",
         f"visualiser: {visualiser.url or 'not running'}",
+        f"backups: {studio.samples.backup_status_text()}",
     ]
     return "\n".join(lines)
 
@@ -230,6 +231,39 @@ def export_musicxml(what: str, filename: Optional[str] = None) -> str:
     pitched track, with rests, ties and triplets. Opens in MuseScore, Dorico, Sibelius and Finale.
     """
     return studio.export_musicxml(what, filename)
+
+
+# -- the device's sample library ----------------------------------------------
+
+@tool
+def list_device_sounds(search: Optional[str] = None) -> str:
+    """
+    List the samples stored on the EP-133 (slots 1–999): name, length, root note, play mode.
+    Read-only. Uses the device's private file protocol; don't run TE's EP Sample Tool at the same time.
+    """
+    return studio.samples.summary(search)
+
+
+@tool
+def play_sample(slot: int) -> str:
+    """Audition a sample slot on the EP-133 itself (raw sample, no trim or envelope)."""
+    return studio.samples.audition(slot)
+
+
+@tool
+def backup_device() -> str:
+    """
+    Back up every sample (as WAV, checked against the device's checksums) and every project
+    to ~/.koii/backups. Read-only on the device. Runs in the background; unchanged samples
+    are copied from the previous backup. Progress shows in status() and the visualiser.
+    """
+    return studio.samples.start_backup()
+
+
+@tool
+def cancel_backup() -> str:
+    """Stop a running backup after the current sample (an incomplete backup isn't used later)."""
+    return studio.samples.cancel_backup()
 
 
 # -- kit --------------------------------------------------------------------
