@@ -3,6 +3,7 @@
 // here. Only the settings you change are written, and the server checks the device kept them.
 
 import { command } from "./api.js";
+import { CONTENT_CHANGED } from "./layout.js";
 
 const GROUPS = ["A", "B", "C", "D"];
 const KEYS = [".", "0", "Enter", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
@@ -69,6 +70,7 @@ export class PadPanel {
       return box;
     });
     $("pad-grid").replaceChildren(...groups);
+    window.dispatchEvent(new Event(CONTENT_CHANGED));   // the map's size changed: fit it again
   }
 
   mapCell(label, selected) {

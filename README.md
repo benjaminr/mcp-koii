@@ -66,8 +66,11 @@ It has four views, one per job, switched from the top bar (and linked: `#beat`, 
 | **Sounds** | making sounds | the sound designer, sampler and kit maker |
 | **Device** | what's on the EP-133 | the open project and all 48 of its pads (click one to change it), packs, the sample library and backups |
 
-The top bar (transport, now playing, connection) and the live strip are always there, and
-the log opens as a drawer. Space plays what the view is about: the pattern in Beat, the
+On a window at least 1100 × 600, each view is one screen with no page scrolling: modules
+share the height, long lists and the designer's controls scroll inside them, and the device
+simulator and the pad map scale down to fit. Smaller windows scroll as a page. The top bar
+(transport, now playing, connection) and the live strip are always there, and the log
+opens as a drawer. Space plays what the view is about: the pattern in Beat, the
 song in Song, the sound being designed in Sounds. Each view's layout is arranged and kept
 separately.
 

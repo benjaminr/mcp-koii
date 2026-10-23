@@ -4,7 +4,10 @@
 // can be split differently. Collapsing a module works at any time. The layout is kept in
 // this browser only.
 //
-// Modules sit on a 12-column grid of 4 px rows. Each module spans as many rows as it is
+// On a big enough window each view is one screen (fit mode): modules share the height in
+// rows (data-rows lets one span two) and scroll inside themselves, and [data-fit-scale]
+// parts (the device simulator) are scaled down to fit. Otherwise, modules sit on a
+// 12-column grid of 4 px rows. Each module spans as many rows as it is
 // tall, so modules of different heights pack together without leaving gaps under the
 // shorter ones. A module marked data-fill (the log) also stretches down to line up with
 // the bottom of the modules beside it, and its [data-grow] part scrolls inside.
@@ -19,6 +22,12 @@ const MAX_SPLIT = 0.8;
 const NARROW_PX = 800;    // below this, every module is full width
 const MEDIUM_PX = 1240;   // below this, modules are half or full width
 const SPLIT_FROM_PX = 1100;  // two-column bodies stack below this, so splits don't apply
+// Big enough windows show each view as one screen with no page scrolling: modules fill the
+// height in equal rows and scroll inside themselves. Smaller ones scroll as a page.
+const FIT_FROM_WIDTH_PX = 1100;
+const FIT_FROM_HEIGHT_PX = 600;
+/** Dispatch this on window when a [data-fit-scale] part's content changes size. */
+export const CONTENT_CHANGED = "koii:content-changed";
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -85,6 +94,7 @@ export class LayoutEditor {
     const measure = new ResizeObserver((entries) => {
       entries.forEach((entry) => this._fitRows(entry.target));
       this._fill();
+      this._scaleToFit();
     });
     for (const module of this.modules) {
       this._addModuleTools(module);
@@ -105,6 +115,8 @@ export class LayoutEditor {
     document.addEventListener("pointerup", () => this._dragEnd());
     document.addEventListener("pointercancel", () => this._dragEnd());
     window.addEventListener("resize", () => this.apply());
+    // Parts that fill in later (the pad map, once read from the device) ask to be measured again.
+    window.addEventListener(CONTENT_CHANGED, () => this._scaleToFit());
     this.apply();
     page.classList.add("packed");
   }
@@ -126,15 +138,24 @@ export class LayoutEditor {
 
   // -- applying the saved layout ------------------------------------------------------
 
+  /** One screen per view, or a scrolling page on small windows. */
+  fitting() {
+    return window.innerWidth >= FIT_FROM_WIDTH_PX && window.innerHeight >= FIT_FROM_HEIGHT_PX;
+  }
+
   apply() {
+    const fit = this.fitting();
+    this.page.classList.toggle("fit", fit);
+    if (this.isActive()) document.documentElement.classList.toggle("fit-viewport", fit);
     const order = this._order();
     for (const module of this.modules) {
       const id = module.dataset.module;
       const settings = this._moduleSettings(id);
       module.style.order = String(order.indexOf(id));
       module.style.setProperty("--span", this._effectiveSpan(settings.span));
-      module.style.height = settings.height ? `${settings.height}px` : "";
-      module.classList.toggle("sized", Boolean(settings.height));
+      module.style.height = settings.height && !fit ? `${settings.height}px` : "";
+      module.classList.toggle("sized", Boolean(settings.height) && !fit);
+      if (fit) module.style.setProperty("--rows", module.dataset.rows || 1);
       module.classList.toggle("collapsed", Boolean(settings.collapsed));
       module.hidden = Boolean(settings.hidden);
       const collapse = module.querySelector(":scope > .module-head .collapse-tool");
@@ -146,6 +167,19 @@ export class LayoutEditor {
     for (const container of this.page.querySelectorAll("[data-split]")) this._applySplit(container);
     this._renderHidden();
     this._fill();
+    this._scaleToFit();
+  }
+
+  /** Scale [data-fit-scale] parts down (never up) so they fit the space their module leaves them. */
+  _scaleToFit() {
+    for (const part of this.page.querySelectorAll("[data-fit-scale]")) {
+      part.style.zoom = "";
+      if (!this.page.classList.contains("fit") || part.closest(".module")?.hidden) continue;
+      const room = part.parentElement;
+      const FIT_MARGIN = 0.985;   // a little room for rounding, so nothing is clipped
+      const scale = Math.min(1, (room.clientHeight / part.scrollHeight) * FIT_MARGIN, (room.clientWidth / part.scrollWidth) * FIT_MARGIN);
+      if (scale > 0 && scale < 1) part.style.zoom = scale.toFixed(3);
+    }
   }
 
   /**
@@ -154,6 +188,7 @@ export class LayoutEditor {
    * Modules given a height by hand, collapsed ones, and narrow screens are left alone.
    */
   _fill() {
+    if (this.page.classList.contains("fit")) return;   // every module already fills its row
     for (const module of this.modules.filter((candidate) => candidate.hasAttribute("data-fill"))) {
       const settings = this._moduleSettings(module.dataset.module);
       const allowed = !module.hidden && !settings.height && !settings.collapsed && window.innerWidth >= MEDIUM_PX;
@@ -211,7 +246,7 @@ export class LayoutEditor {
 
   /** Give a module as many grid rows as it is tall, plus the gap below it. */
   _fitRows(module) {
-    if (module.hidden) return;
+    if (module.hidden || this.page.classList.contains("fit")) return;
     const gap = parseFloat(getComputedStyle(module).marginBottom) || 0;
     const rows = Math.ceil((module.getBoundingClientRect().height + gap) / ROW_UNIT_PX);
     if (module.style.getPropertyValue("--rows") !== String(rows)) module.style.setProperty("--rows", rows);
@@ -332,7 +367,9 @@ export class LayoutEditor {
     const dy = event.clientY - drag.y;
     if (Math.abs(dy) > 6) drag.heightChanged = true;
     const settings = this.saved.modules[id] = { ...(this.saved.modules[id] || {}), span };
-    if (drag.heightChanged) settings.height = Math.round(Math.max(MIN_HEIGHT_PX, drag.height + dy));
+    if (drag.heightChanged && !this.page.classList.contains("fit")) {   // in fit mode the window sets heights
+      settings.height = Math.round(Math.max(MIN_HEIGHT_PX, drag.height + dy));
+    }
     this.apply();
   }
 

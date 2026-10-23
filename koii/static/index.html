@@ -70,13 +70,15 @@
   <main class="layout view" data-view="beat" aria-label="Beat: make a pattern">
     <section class="module device-panel" data-module="device" data-span="4" aria-label="Device">
       <h2 class="module-head"><span class="module-index">01</span>device</h2>
-      <div class="module-parts" data-regions="device">
+      <div class="fit-box">
+      <div class="module-parts" data-regions="device" data-fit-scale>
         <div data-region="device" data-region-label="device"><div id="device"></div></div>
         <div class="keys-wrap" data-region="keys" data-region-label="keyboard">
           <div class="caption">pitched notes · midi channels</div>
           <div id="keys"></div>
         </div>
         <p class="hint" data-region="hint" data-region-label="hint">Pads light <b class="swatch play"></b> for notes sent and <b class="swatch press"></b> when you press them on the device. Click a pad to hear it.</p>
+      </div>
       </div>
     </section>
     <section class="module editor-panel" data-module="pattern" data-span="5" aria-label="Pattern editor">
@@ -309,6 +311,8 @@
   <main class="layout view" data-view="device" aria-label="Device: what's on the EP-133" hidden>
     <section class="module" data-module="pads" data-span="7" aria-label="Pads">
       <h2 class="module-head"><span class="module-index">01</span>pads</h2>
+      <div class="fit-box">
+      <div class="pads-body" data-fit-scale>
       <div class="caption">the open project's pads, live on the EP-133 · click one to change it</div>
       <div id="pad-grid" class="pad-grid"></div>
       <div class="pad-panel">
@@ -328,6 +332,8 @@
           <button id="pad-undo" class="btn ghost small" type="button" title="Put back the last pad change">undo</button>
         </div>
         <div id="pad-status" class="pad-status"></div>
+      </div>
+      </div>
       </div>
     </section>
     <section class="module" data-module="packs" data-span="5" aria-label="Packs">

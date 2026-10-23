@@ -948,3 +948,54 @@ main.view[hidden] { display: none !important; }
 @media (max-width: 1700px) { .logo-sub { display: none; } .topbar { gap: 14px; } }
 @media (max-width: 1450px) { .view-tab { padding: 7px 10px; } .transport { gap: 6px; } .now-playing { min-width: 140px; } }
 .settings .switch.small { padding: 1px 8px; }
+
+/* -- one screen per view (fit mode, see layout.js) -------------------------------------- */
+
+html.fit-viewport, html.fit-viewport body { height: 100%; overflow: hidden; }
+.layout.fit {
+  height: calc(100dvh - var(--topbar-height, 64px)); grid-auto-rows: minmax(0, 1fr); row-gap: var(--gap);
+  padding: var(--gap); overflow: hidden; align-items: stretch;
+}
+.layout.fit > .module {
+  margin-bottom: 0; grid-row: span var(--rows, 1); min-height: 0;
+  display: flex; flex-direction: column; overflow: auto;
+}
+.layout.fit > .module > .module-head { position: sticky; top: -14px; z-index: 2; flex: none; }
+.layout.fit > .module.collapsed { align-self: start; }
+
+/* Beat: the simulator scales to its column; the pattern grid and list scroll inside. */
+.layout.fit .device-panel { overflow: hidden; }
+.layout.fit .device-panel .fit-box { flex: 1; min-height: 0; overflow: hidden; }
+.layout.fit .editor-panel > .tab-body:not([hidden]) { flex: 1; min-height: 0; overflow: auto; }
+.layout.fit [data-module="patterns"] .pattern-list { flex: 1; min-height: 0; max-height: none; }
+
+/* Song: the arranger takes the height left above the text form. */
+.layout.fit [data-module="song"] .arrange { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.layout.fit [data-module="song"] .arranger { flex: 1; min-height: 120px; overflow: auto; }
+.layout.fit [data-module="song"] .arrangement { min-height: 38px; height: 46px; }
+
+/* Sounds: the controls and the preview each scroll on their own. */
+.layout.fit .designer-panel { overflow: hidden; }
+.layout.fit .designer-panel .designer-page:not([hidden]) { flex: 1; min-height: 0; overflow: auto; }
+.layout.fit .designer-panel #designer-page-design:not([hidden]) { overflow: hidden; display: flex; }
+/* The controls scroll; the preview sticks beside them so play and upload stay in reach.
+   (The controls flow in newspaper columns, which need room to grow downwards.) */
+.layout.fit .designer-body { flex: 1; min-height: 0; height: 100%; overflow-y: auto; overscroll-behavior: contain; }
+/* The preview column never runs past the bottom of the screen: the space above it is the top
+   bar, the page padding and the module's and designer's headers (about 177 px). */
+.layout.fit .designer-output { position: sticky; top: 0; max-height: calc(100dvh - var(--topbar-height, 64px) - 177px);
+                               overflow-y: auto; padding-right: 4px; }
+.layout.fit .designer-output > * { flex: none; }
+
+/* Device: packs and the sample list scroll inside their modules. */
+.layout.fit [data-module="packs"] .pack-list { flex: 1; min-height: 0; overflow: auto; padding: 2px 6px 6px 2px; }
+.layout.fit .samples-panel .samples-body { flex: 1; min-height: 0; }
+.layout.fit .samples-panel .sample-list { max-height: none; height: 100%; }
+.layout.fit .pattern-filter { flex: none; }
+.layout.fit .device-panel .module-parts > .hint { display: none; }
+/* Device: the pads and packs row gets more of the height than the sample library. */
+.layout.fit[data-view="device"] { grid-template-rows: minmax(0, 1.3fr) minmax(0, 1fr); }
+.layout.fit .pad-map-cell { min-height: 44px; }
+.layout.fit .pad-grid { margin: 4px 0 8px; }
+.layout.fit [data-module="pads"] { overflow: hidden; }
+.layout.fit [data-module="pads"] .fit-box { flex: 1; min-height: 0; overflow: hidden; }
