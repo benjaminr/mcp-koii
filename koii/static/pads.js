@@ -26,11 +26,37 @@ export class PadPanel {
     const channel = $("pad-channel");
     channel.append(new Option("none", "none"));
     for (let n = 1; n <= 16; n++) channel.append(new Option(`ch ${n}`, String(n)));
+    const project = $("project-select");
+    for (let n = 1; n <= 9; n++) project.append(new Option(String(n), String(n)));
+    project.addEventListener("change", () => this.openProject(Number(project.value)));
     select.addEventListener("change", () => this.read());
     $("pad-read").addEventListener("click", () => this.read());
     $("pad-apply").addEventListener("click", () => this.apply());
     $("pad-undo").addEventListener("click", () => this.undo());
     $("pad-level").addEventListener("input", () => { $("pad-level-value").textContent = $("pad-level").value; });
+  }
+
+  /** Show which project is open on the device (quietly: the device may not be connected yet). */
+  async readProject() {
+    try {
+      const { project } = await command("project", {});
+      $("project-select").value = String(project);
+    } catch {
+      // Not connected over USB yet; the picker keeps its last value.
+    }
+  }
+
+  async openProject(project) {
+    this.status(`opening project ${project} on the EP-133…`);
+    try {
+      const result = await this.run("project_open", { project });
+      this.toast(result.message);
+      this.current = null;
+      await this.read();
+    } catch (error) {
+      this.status(`project not changed: ${error.message}`, true);
+      this.readProject();
+    }
   }
 
   /** Select a pad (e.g. one clicked on the simulated device) and read it soon after. */
@@ -106,8 +132,12 @@ export class PadPanel {
     }
   }
 
-  /** A pad changed elsewhere (by Claude, say): show it if it's the selected one. */
+  /** A pad or project changed elsewhere (by Claude, say). */
   onEvent(event) {
+    if (event.type === "project") {
+      $("project-select").value = String(event.project);
+      return;
+    }
     if (event.pad === $("pad-select").value) this.show(event.settings, event.project);
   }
 

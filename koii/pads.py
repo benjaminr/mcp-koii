@@ -47,6 +47,9 @@ RANGES = {
 SETTINGS = ("sound", "channel", "mode", *[name for name in RANGES if name != "channel"])
 HISTORY_LIMIT = 200
 SETTLE_SECONDS = 0.3   # let the device apply a change before reading it back
+PROJECT_SETTLE_SECONDS = 6.0   # the protocol notes warn that playing straight after a switch can misbehave
+PROJECT_COUNT = 9
+GROUPS_NODE_OFFSET = 100       # within a project: the groups folder, whose 'active' is the selected group
 
 
 class PadError(ValueError):
@@ -108,7 +111,7 @@ def changes_for(settings: Dict[str, Any], current: Dict[str, Any], sound_frames:
     Turn friendly settings into the device keys to write.
 
     sound: a slot 1–999 (its playback region is reset to the whole sample, as the device
-    needs when a pad changes sample). channel: 1–16, or None / 0 / "none" for no channel of
+    needs when a pad changes sample), or 0 to empty the pad. channel: 1–16, or None / 0 / "none" for no channel of
     its own. mode: oneshot / key / legato (written with a release, as the device requires).
     level 0–100, attack and release 0–255, pan −16 (left) … 16 (right).
     """
@@ -116,7 +119,9 @@ def changes_for(settings: Dict[str, Any], current: Dict[str, Any], sound_frames:
     if unknown:
         raise PadError(f"unknown pad setting {', '.join(unknown)}; use {', '.join(SETTINGS)}")
     changes: Dict[str, Any] = {}
-    if "sound" in settings:
+    if settings.get("sound") == 0:
+        changes["sym"] = 0
+    elif "sound" in settings:
         slot = settings["sound"]
         if not isinstance(slot, int) or not 1 <= slot <= 999:
             raise PadError(f"sound must be a sample slot 1–999, not {slot!r}")
@@ -162,6 +167,31 @@ class PadEditor:
         with self.client.session("pads: active project") as session:
             return _active_project(session)
 
+    def open_project(self, project: int) -> Dict[str, Any]:
+        """
+        Open another project on the EP-133 (1–9), as TE's Sample Tool does: set it as the
+        active project, check the device took it, then select its group A and first pad.
+        """
+        if not isinstance(project, int) or not 1 <= project <= PROJECT_COUNT:
+            raise PadError(f"projects are 1–{PROJECT_COUNT}, not {project!r}")
+        node = FIRST_PROJECT_NODE + (project - 1) * NODES_PER_PROJECT
+        groups = node + GROUPS_NODE_OFFSET
+        with self.client.session("pads: open project") as session:
+            previous = _active_project(session)
+            if previous != project:
+                session.preflight()
+                session.set_metadata(PROJECTS_NODE, {"active": node})
+                time.sleep(SETTLE_SECONDS)
+                if _active_project(session) != project:
+                    raise PadError(f"the EP-133 stayed on project {previous}")
+                session.set_metadata(groups, {"active": groups + NODES_PER_GROUP})            # group A
+                session.set_metadata(groups + NODES_PER_GROUP, {"active": groups + NODES_PER_GROUP + 1})  # its first pad
+        if previous != project:
+            time.sleep(PROJECT_SETTLE_SECONDS)
+        self.events.publish("project", project=project, previous=previous)
+        message = f"project {project} is open" + (f" (was {previous})" if previous != project else " already")
+        return {"project": project, "previous": previous, "message": message}
+
     def get(self, group: Optional[str] = None, pad: Optional[str] = None) -> Dict[str, Any]:
         """The settings of one pad, one group, or all 48, in the open project."""
         pads = [parse_pad(pad)] if pad else all_pads(group)
@@ -180,7 +210,7 @@ class PadEditor:
             project = _active_project(session)
             node = target.node(project)
             before = session.metadata(node)
-            frames = _sound_frames(session, settings["sound"]) if "sound" in settings else None
+            frames = _sound_frames(session, settings["sound"]) if settings.get("sound") else None
             changes = changes_for(settings, before, frames)
             session.preflight()
             session.set_metadata(node, changes)

@@ -115,6 +115,11 @@ class FakeEP133:
         if command == 0x07 and payload[1] == 0x01:
             node = int.from_bytes(payload[2:4], "big")
             values = json.loads(payload[4:].split(b"\0", 1)[0])
+            if node == files.PROJECTS_NODE:
+                self.active_project = (values["active"] - 3000) // 1000 + 1
+                return 0, b""
+            if node % 1000 in (100,) or (node % 1000 in (200, 300, 400, 500) and node >= 3000):
+                return 0, b""   # group and pad cursors: accepted, nothing to keep
             if 3200 <= node < 12000:
                 pad = dict(self.pads.get(node, {"sym": 0}))
                 if values.get("sym"):  # like the device: a new sample brings its own defaults

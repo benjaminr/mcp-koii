@@ -153,6 +153,11 @@ def _commands(studio: Studio) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
         "pads": lambda b: studio.pads.get(b.get("group"), b.get("pad")),
         "pad_set": lambda b: studio.pads.set(required(b, "pad"), **dict(required(b, "settings"))),
         "pad_undo": lambda b: studio.pads.undo(),
+        "project": lambda b: {"project": studio.pads.active_project()},
+        "project_open": lambda b: studio.pads.open_project(int(required(b, "project"))),
+        "packs": lambda b: {"packs": studio.packs.list(), "status": studio.packs.status()},
+        "pack_install": lambda b: studio.packs.start_install(str(required(b, "name")), int(required(b, "project"))),
+        "pack_remove": lambda b: studio.packs.start_remove(str(required(b, "name"))),
         "disconnect": lambda b: studio.disconnect(),
         **_designer_commands(studio, required),
     }
@@ -217,7 +222,7 @@ def _pcm(encoded: str) -> bytes:
 _QUIET_COMMANDS = {"check", "arrangement", "samples", "backup_status", "suggest_slot",
                    "design_schema", "design_new", "design_preset", "design_preview", "design_vary", "design_morph",
                    "design_get", "design_library", "design_for_slot", "kit", "kit_status", "source_get",
-                   "source_design", "bounce_plan", "pads"}
+                   "source_design", "bounce_plan", "pads", "project", "packs"}
 
 
 def full_state(studio: Studio) -> Dict[str, Any]:

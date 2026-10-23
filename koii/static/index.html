@@ -74,6 +74,8 @@
         <div class="pad-panel" data-region="pads" data-region-label="pad settings">
           <div class="caption">pad settings · on the EP-133, live · click a pad above to pick it</div>
           <div class="pad-form">
+            <label class="pad-field"><span class="setting-name">project</span>
+              <select id="project-select" aria-label="Project open on the EP-133" title="Open another project on the EP-133 (6–9 start empty)"></select></label>
             <select id="pad-select" class="pad-select" aria-label="Pad"></select>
             <button id="pad-read" class="btn ghost small" type="button" title="Read this pad's settings from the device">read</button>
             <label class="pad-field"><span class="setting-name">sound</span>
@@ -184,6 +186,14 @@
     </section>
     <section class="module samples-panel" data-module="samples" data-span="12" aria-label="Samples">
       <h2 class="module-head"><span class="module-index">05</span>samples</h2>
+      <div class="pack-area">
+        <div class="caption">packs · demos and kits: samples, pads, patterns and songs in one go · remove them to free space</div>
+        <div id="pack-list" class="pack-list"></div>
+        <div id="pack-progress" class="backup-progress" hidden>
+          <div class="np-bar"><div id="pack-fill" class="np-fill"></div></div>
+          <span id="pack-text" class="backup-text"></span>
+        </div>
+      </div>
       <div class="samples-head">
         <button id="samples-load" class="btn" type="button" title="Read the sample library from the device">read library</button>
         <input id="samples-search" class="name-input small" placeholder="search names or slots" spellcheck="false" aria-label="Search samples">

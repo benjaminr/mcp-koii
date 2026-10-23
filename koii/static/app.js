@@ -8,6 +8,7 @@ import { BRUSHES, Grid, renderKey } from "./grid.js";
 import { LayoutEditor } from "./layout.js";
 import { Arranger, makeDraggable } from "./arranger.js";
 import { PadPanel } from "./pads.js";
+import { PackList } from "./pack-list.js";
 import * as model from "./model.js";
 import { Notation } from "./notation.js";
 import { roleForName, roleForPad, roleForTrack } from "./roles.js";
@@ -107,6 +108,7 @@ const designer = new SoundDesigner({
   }),
 });
 const padPanel = new PadPanel({ toast, run });
+const packList = new PackList({ toast, run });
 const arranger = new Arranger($("#arranger"), {
   getLibrary: () => state.server?.library,
   onChange: (text) => {
@@ -508,7 +510,10 @@ function onEvent(event) {
       return;
     case "activity": return addActivity(event);
     case "backup": return samples.onBackup(event);
-    case "pad": return padPanel.onEvent(event);
+    case "pad":
+    case "project":
+      return padPanel.onEvent(event);
+    case "pack": return packList.onEvent(event);
     case "design":
     case "designs":
     case "kit":
@@ -594,6 +599,8 @@ async function refreshState() {
   renderLibrary();
   arranger.render();
   renderTransport();
+  if (state.server.connection?.connected && !state.server.connection.simulated) padPanel.readProject();
+  packList.refresh();
   renderTrackOptions();
 }
 

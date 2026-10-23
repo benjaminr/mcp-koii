@@ -119,6 +119,10 @@ class DeviceLibrary:
         self.uploads_path.parent.mkdir(parents=True, exist_ok=True)
         self.uploads_path.write_text(json.dumps({str(k): v for k, v in sorted(uploads.items())}, indent=2))
 
+    def is_ours(self, slot: int) -> bool:
+        """True if the slot holds a sound koii uploaded and nobody has changed since."""
+        return self._ours(slot, self.sounds(refresh=True))
+
     def _ours(self, slot: int, sounds: List[Sound]) -> bool:
         """True if the slot holds exactly the sound koii uploaded there (or left there unfinished)."""
         entry = self.uploads().get(slot)

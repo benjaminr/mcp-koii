@@ -304,6 +304,55 @@ def set_pad(pad: str, sound: Optional[int] = None, channel: Optional[str] = None
 
 
 @tool
+def open_project(project: int) -> str:
+    """
+    Open another project (1–9) on the EP-133 over USB and check it took. Pads belong to a
+    project, so get_pads and set_pad then act on this one. Projects 6–9 start empty.
+    """
+    return studio.pads.open_project(project)["message"]
+
+
+@tool
+def list_packs() -> str:
+    """
+    The sample packs in ~/.koii/packs: demos and kits that put samples, a project's pads, and
+    patterns and songs on the EP-133 in one go. Shows each one's size and where it's installed.
+    """
+    packs = studio.packs.list()
+    if not packs:
+        return "no packs in ~/.koii/packs"
+    lines = []
+    for pack in packs:
+        where = f"installed in project {pack['installed']['project']}" if pack["installed"] else "not on the device"
+        lines.append(f"{pack['name']}: {pack['title']} · {pack['samples']} samples, {pack['bytes'] / 1e6:.1f} MB · "
+                     f"songs {', '.join(pack['songs']) or 'none'} · {where}")
+    return "\n".join(lines)
+
+
+@tool
+def install_pack(name: str, project: int) -> str:
+    """
+    Install a pack into a project (1–9; projects 6–9 start empty): uploads its samples to empty
+    slots, opens the project and fills its pads, and saves its patterns and songs. Runs in the
+    background; pack_status shows progress. Samples already on the device are reused.
+    """
+    return studio.packs.start_install(name, project)["message"]
+
+
+@tool
+def remove_pack(name: str) -> str:
+    """Delete a pack's samples from the EP-133 to free space, and empty the pads that played them.
+    Its patterns and songs stay in the library, so it can be installed again later."""
+    return studio.packs.start_remove(name)["message"]
+
+
+@tool
+def pack_status() -> dict:
+    """Progress of the pack being installed or removed."""
+    return studio.packs.status()
+
+
+@tool
 def undo_pad_change() -> str:
     """Put back the pad changed most recently by set_pad, as it was before."""
     return studio.pads.undo()["message"]
