@@ -7,7 +7,7 @@ import { cloneModel, isHit, normaliseHolds, patternLength, repeatTo, stepsPerBea
 const CYCLE = { ".": "x", "-": "x", x: "X", X: "o", o: "." };
 
 export const BRUSHES = [
-  { symbol: "cycle", label: "Cycle", title: "Click cycles rest → hit → accent → ghost" },
+  { symbol: "cycle", label: "cycle", title: "Click cycles rest → hit → accent → ghost" },
   { symbol: "x", label: "x", title: "Hit (velocity 100)" },
   { symbol: "X", label: "X", title: "Accent (127)" },
   { symbol: "o", label: "o", title: "Ghost (50)" },
@@ -203,7 +203,19 @@ export class Grid {
     if (step === this.playhead) return;
     if (this.playhead !== null) this.columns[this.playhead]?.forEach((cell) => cell.classList.remove("playhead"));
     this.playhead = step;
-    if (step !== null) this.columns[step]?.forEach((cell) => cell.classList.add("playhead"));
+    if (step === null) return;
+    this.columns[step]?.forEach((cell) => cell.classList.add("playhead"));
+    this._follow(this.columns[step]?.[0]);
+  }
+
+  /** Keep the playhead in view when the pattern is wider than the panel. */
+  _follow(cell) {
+    const scroller = this.container;
+    if (!cell || scroller.scrollWidth <= scroller.clientWidth || this.painting) return;
+    const left = cell.getBoundingClientRect().left - scroller.getBoundingClientRect().left + scroller.scrollLeft;
+    const visibleFrom = scroller.scrollLeft + 160;
+    const visibleTo = scroller.scrollLeft + scroller.clientWidth - 40;
+    if (left < visibleFrom || left > visibleTo) scroller.scrollLeft = Math.max(0, left - 170);
   }
 }
 

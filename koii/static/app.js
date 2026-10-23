@@ -48,7 +48,15 @@ const editor = {
 const synth = new BrowserSynth();
 const device = new Device($("#device"), {
   onPad: auditionPad,
-  onTransport: (action) => (action === "play" ? playEditor() : stop()),
+  onTransport: (action) => {
+    if (action === "play") return state.pass ? stop() : playEditor();
+    const delta = action === "plus" ? 1 : -1;
+    return editModel((m) => {
+      const bpm = m.bpm + delta;
+      if (bpm < 20 || bpm > 300) return false;
+      m.bpm = bpm;
+    });
+  },
 });
 const keys = new Keys($("#keys"));
 const grid = new Grid($("#grid"), {
@@ -185,6 +193,7 @@ function renderSettings() {
   $("#swing").value = current.swing;
   $("#swing-value").textContent = current.swing === 50 ? "off" : `${current.swing}%`;
   $("#grid-select").value = current.grid;
+  if (!state.pass) device.setBpm(current.bpm);
   const bars = model.patternLength(current) / model.stepsPerBar(current);
   $("#bar-count").textContent = Number.isInteger(bars) ? String(bars) : bars.toFixed(2);
 }
@@ -338,6 +347,7 @@ function onEvent(event) {
     case "pass":
       state.pass = event;
       state.queued = null;
+      device.setPlaying(true, event.loop ? "LOOP" : "PLAY");
       renderNowPlaying();
       renderTimeline();
       return;
@@ -349,7 +359,10 @@ function onEvent(event) {
       state.pass = null;
       state.queued = null;
       device.clear();
-      device.setScreen(editor.model ? String(editor.model.bpm) : "KO II", "stopped");
+      device.setPlaying(false);
+      device.setCounter("1.1.1");
+      device.setBpm(editor.model?.bpm);
+      device.setSub("stopped");
       grid.setPlayhead(null);
       notation.setPlayhead(null);
       renderNowPlaying();
@@ -379,7 +392,7 @@ function onNote(event, kind) {
   }
   if (event.on) {
     keys.noteOn(event.note);
-    device.pitchedNote(noteName(event.note), event.channel);
+    device.pitchedNote(noteName(event.note), event.channel, event.velocity);
     synth.trigger(event.note < 52 ? "bass" : "keys", event.velocity, event.note);
   } else {
     keys.noteOff(event.note);
@@ -405,15 +418,14 @@ function playbackPosition() {
 
 function frame() {
   requestAnimationFrame(frame);
+  device.tick();
   const position = playbackPosition();
   if (!position) return;
   const { section, beat, elapsed, total } = position;
   $("#np-fill").style.width = `${Math.min(100, (elapsed / total) * 100)}%`;
-  const display = `${Math.floor(beat / 4) + 1}.${Math.floor(beat % 4) + 1}`;
-  if (display !== frame.lastDisplay) {
-    device.setScreen(display);
-    frame.lastDisplay = display;
-  }
+  const sixteenth = Math.floor((beat % 1) * 4 + 1e-6) + 1;
+  device.setCounter(`${Math.floor(beat / 4) + 1}.${Math.floor(beat % 4) + 1}.${sixteenth}`);
+  device.setBpm(section.bpm);
   const playhead = document.querySelector(".timeline-playhead");
   if (playhead) playhead.style.left = `${Math.min(100, (elapsed / total) * 100)}%`;
 
@@ -446,23 +458,23 @@ function renderConnection() {
   pill.classList.toggle("offline", !state.online);
   pill.classList.toggle("connected", Boolean(connection?.connected && !connection.simulated));
   pill.classList.toggle("simulated", Boolean(connection?.simulated));
-  let label = "Not connected";
-  if (!state.online) label = "Server offline";
-  else if (connection?.simulated) label = "Browser simulator";
+  let label = "no device";
+  if (!state.online) label = "server offline";
+  else if (connection?.simulated) label = "simulator";
   else if (connection?.connected) label = `${connection.port} · ch${connection.channel}`;
   $("#connection-label").textContent = label;
 
   const menu = $("#connection-menu");
   menu.replaceChildren();
   for (const port of state.server?.ports || []) {
-    menu.append(button("", `Connect ${port}`, null, () => connect(port)));
+    menu.append(button("", `connect ${port}`, null, () => connect(port)));
   }
   if (state.server?.port_error) menu.append(element("div", "menu-note", state.server.port_error));
-  menu.append(button("", "Browser simulator (no device)", null, () => {
+  menu.append(button("", "browser simulator (no device)", null, () => {
     enableSound(true);
     connect("simulator");
   }));
-  if (connection?.connected) menu.append(button("", "Disconnect", null, () => run("disconnect", {}).catch(() => {})));
+  if (connection?.connected) menu.append(button("", "disconnect", null, () => run("disconnect", {}).catch(() => {})));
 }
 
 async function connect(port) {
@@ -473,7 +485,6 @@ async function connect(port) {
 function enableSound(on) {
   if (on) synth.enable();
   else synth.disable();
-  $("#sound-btn").textContent = on ? "🔊 Browser sound" : "🔇 Browser sound";
   $("#sound-btn").classList.toggle("active", on);
 }
 
@@ -572,10 +583,12 @@ function previewArrangement() {
   }, ARRANGEMENT_DELAY_MS);
 }
 
+const SECTION_COLOURS = ["#ff5a1f", "#cdd1d0", "#4ba6e0", "#efb02e", "#ff4f8b", "#e9eae5", "#8e9497"];
+
 function colourFor(label) {
   let hash = 0;
-  for (const character of label) hash = (hash * 31 + character.charCodeAt(0)) % 360;
-  return `hsl(${hash}, 70%, 62%)`;
+  for (const character of label) hash = (hash * 31 + character.charCodeAt(0)) % SECTION_COLOURS.length;
+  return SECTION_COLOURS[hash];
 }
 
 /** The timeline shows what's playing (if it has sections), else the arrangement being edited. */
@@ -599,19 +612,19 @@ function renderTimeline() {
 function renderNowPlaying() {
   const label = $("#np-label");
   if (!state.pass) {
-    label.textContent = "Nothing playing";
+    label.textContent = "nothing playing";
     label.classList.remove("playing");
     $("#np-fill").style.width = "0";
     return;
   }
   const what = state.pass.label === "pattern" ? (state.editorPlaying ? "editor pattern" : "pattern") : state.pass.label;
-  let text = `▶ ${what}${state.pass.loop ? ` · loop pass ${state.pass.number}` : ""}`;
+  let text = `${what}${state.pass.loop ? ` · loop ${state.pass.number}` : ""}`;
   if (state.queued) text += ` → next: ${state.queued.label === "pattern" ? "your edit" : state.queued.label}`;
   label.textContent = text;
   label.classList.add("playing");
 }
 
-const SOURCE_NAMES = { claude: "Claude", browser: "You", device: "Device" };
+const SOURCE_NAMES = { claude: "claude", browser: "you", device: "device" };
 
 function addActivity(event) {
   state.activity.unshift(event);

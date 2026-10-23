@@ -3,77 +3,85 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KOII Visualiser</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%23ff6a1a'/%3E%3C/svg%3E">
+  <title>koii visualiser</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 15 19'%3E%3Cg fill='%231d1c1f'%3E%3Crect x='0' y='0' width='4' height='4'/%3E%3Crect x='5' y='0' width='4' height='4'/%3E%3Crect x='10' y='0' width='4' height='4'/%3E%3Crect x='0' y='5' width='4' height='4'/%3E%3Crect x='10' y='5' width='4' height='4'/%3E%3Crect x='0' y='10' width='4' height='4'/%3E%3Crect x='5' y='10' width='4' height='4'/%3E%3Crect x='10' y='10' width='4' height='4'/%3E%3Crect x='0' y='15' width='4' height='4'/%3E%3Crect x='5' y='15' width='4' height='4'/%3E%3Crect x='10' y='15' width='4' height='4'/%3E%3C/g%3E%3Crect x='5' y='5' width='4' height='4' fill='%23ff5a1f'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark">K.O. II</span>
-      <span class="brand-sub">visualiser</span>
+    <div class="logo" aria-label="koii visualiser">
+      <span class="logo-glyph" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      </span>
+      <span class="logo-words">
+        <span class="logo-name">koii</span>
+        <span class="logo-sub">mcp · ep-133 visualiser</span>
+      </span>
     </div>
 
     <div class="transport">
-      <button id="play-btn" class="btn primary" type="button" title="Play the editor pattern (Space)">▶ Play</button>
-      <button id="loop-btn" class="btn toggle" type="button" aria-pressed="false" title="Loop until stopped (L)">⟳ Loop</button>
-      <button id="stop-btn" class="btn" type="button" title="Stop (Esc)">■ Stop</button>
-      <label class="switch" title="While the editor pattern loops, each edit switches in at the end of the current pass">
-        <input type="checkbox" id="live-toggle"> <span>Live edit</span>
+      <button id="play-btn" class="btn primary" type="button" title="Play the editor pattern (Space)">▶ play</button>
+      <button id="loop-btn" class="btn toggle" type="button" aria-pressed="false" title="Loop until stopped (L)"><span class="led"></span>loop</button>
+      <button id="stop-btn" class="btn" type="button" title="Stop (Esc)">■ stop</button>
+      <label class="btn toggle switch" title="While the editor pattern loops, each edit switches in at the end of the current pass">
+        <input type="checkbox" id="live-toggle"><span class="led"></span>live edit
       </label>
     </div>
 
     <div class="now-playing" id="now-playing">
-      <span class="np-label" id="np-label">Nothing playing</span>
+      <span class="np-tag">now</span>
+      <span class="np-label" id="np-label">nothing playing</span>
       <div class="np-bar"><div class="np-fill" id="np-fill"></div></div>
     </div>
 
     <div class="connection">
       <button id="connection-btn" class="pill" type="button" aria-haspopup="menu" aria-expanded="false">
-        <span class="dot"></span><span id="connection-label">Connecting…</span>
+        <span class="dot"></span><span id="connection-label">connecting…</span>
       </button>
       <div id="connection-menu" class="menu" role="menu" hidden></div>
     </div>
-    <button id="sound-btn" class="btn ghost" type="button" title="Play sounds in this browser (simulator voices)">🔇 Browser sound</button>
+    <button id="sound-btn" class="btn toggle" type="button" title="Play sounds in this browser (simulator voices)"><span class="led"></span>browser sound</button>
   </header>
 
   <main class="layout">
-    <section class="panel device-panel" aria-label="Device">
+    <section class="module device-panel" aria-label="Device">
+      <h2 class="module-head"><span class="module-index">01</span>device</h2>
       <div id="device"></div>
       <div class="keys-wrap">
-        <div class="caption">Pitched notes (MIDI channels)</div>
+        <div class="caption">pitched notes · midi channels</div>
         <div id="keys"></div>
       </div>
-      <p class="hint">Pads light up for every note sent, and in blue when you press them on the device. Click a pad to hear it.</p>
+      <p class="hint">Pads light <b class="swatch play"></b> for notes sent and <b class="swatch press"></b> when you press them on the device. Click a pad to hear it.</p>
     </section>
 
-    <section class="panel editor-panel" aria-label="Pattern editor">
+    <section class="module editor-panel" aria-label="Pattern editor">
+      <h2 class="module-head"><span class="module-index">02</span>pattern</h2>
       <div class="editor-head">
-        <input id="pattern-name" class="name-input" placeholder="untitled pattern" spellcheck="false" aria-label="Pattern name">
-        <button id="save-btn" class="btn" type="button" title="Save to the library">Save</button>
-        <button id="new-btn" class="btn ghost" type="button" title="Start a new pattern">New</button>
+        <input id="pattern-name" class="name-input" placeholder="untitled" spellcheck="false" aria-label="Pattern name">
+        <button id="save-btn" class="btn" type="button" title="Save to the library">save</button>
+        <button id="new-btn" class="btn ghost" type="button" title="Start a new pattern">new</button>
         <button id="undo-btn" class="btn ghost icon-btn" type="button" title="Undo (⌘Z)">↶</button>
         <button id="redo-btn" class="btn ghost icon-btn" type="button" title="Redo (⇧⌘Z)">↷</button>
-        <a id="midi-link" class="btn ghost" title="Download as a MIDI file" download>⤓ MIDI</a>
+        <a id="midi-link" class="btn ghost" title="Download as a MIDI file" download>⤓ midi</a>
         <div class="tabs" role="tablist">
-          <button class="tab active" type="button" role="tab" data-tab="grid">Grid</button>
-          <button class="tab" type="button" role="tab" data-tab="text">Text</button>
-          <button class="tab" type="button" role="tab" data-tab="notation">Notation</button>
+          <button class="tab active" type="button" role="tab" data-tab="grid">grid</button>
+          <button class="tab" type="button" role="tab" data-tab="text">text</button>
+          <button class="tab" type="button" role="tab" data-tab="notation">notation</button>
         </div>
       </div>
 
       <div class="settings">
-        <label>BPM <input id="bpm" type="number" min="20" max="300" step="1"></label>
-        <label>Swing <input id="swing" type="range" min="50" max="75" step="1"> <span id="swing-value" class="mono"></span></label>
-        <label>Grid
+        <label><span class="setting-name">bpm</span> <input id="bpm" type="number" min="20" max="300" step="1"></label>
+        <label><span class="setting-name">swing</span> <input id="swing" type="range" min="50" max="75" step="1"> <span id="swing-value" class="num"></span></label>
+        <label><span class="setting-name">grid</span>
           <select id="grid-select">
             <option value="1/4">1/4</option><option value="1/8">1/8</option><option value="1/16">1/16</option>
             <option value="1/32">1/32</option><option value="1/8t">1/8 triplets</option><option value="1/16t">1/16 triplets</option>
           </select>
         </label>
-        <span class="bars">Bars
+        <span class="bars"><span class="setting-name">bars</span>
           <button id="bar-minus" class="btn ghost small" type="button" title="Remove the last bar">−</button>
-          <span id="bar-count" class="mono"></span>
+          <span id="bar-count" class="num"></span>
           <button id="bar-plus" class="btn ghost small" type="button" title="Add a bar (copies the last one)">+</button>
         </span>
       </div>
@@ -83,8 +91,8 @@
         <div id="grid" class="grid-wrap"></div>
         <div class="add-track">
           <select id="add-track-select" aria-label="Sound to add"></select>
-          <button id="add-track-btn" class="btn" type="button">+ Track</button>
-          <span class="hint">Shift-drag holds notes · right-click erases · repeats of shorter tracks are faded</span>
+          <button id="add-track-btn" class="btn" type="button">+ track</button>
+          <span class="hint">shift-drag holds · right-click erases · faded steps are repeats</span>
         </div>
       </div>
       <div id="tab-text" class="tab-body" hidden>
@@ -99,25 +107,25 @@
       <div id="issues" class="issues" aria-live="polite"></div>
     </section>
 
-    <aside class="panel side-panel" aria-label="Library, arrangement and activity">
-      <section>
-        <h2>Library</h2>
+    <aside class="side" aria-label="Library, arrangement and activity">
+      <section class="module">
+        <h2 class="module-head"><span class="module-index">03</span>library</h2>
         <div id="library" class="library"></div>
       </section>
-      <section>
-        <h2>Arrange</h2>
+      <section class="module">
+        <h2 class="module-head"><span class="module-index">04</span>arrange</h2>
         <textarea id="arrangement" class="arrangement" placeholder="intro x2, verse x4, verse+bass x4, chorus x8" spellcheck="false"></textarea>
         <div class="row">
-          <button id="arr-play" class="btn" type="button">▶ Play</button>
-          <button id="arr-loop" class="btn ghost" type="button">⟳ Loop</button>
+          <button id="arr-play" class="btn" type="button">▶ play</button>
+          <button id="arr-loop" class="btn ghost" type="button">loop</button>
           <input id="song-name" class="name-input small" placeholder="song name" spellcheck="false" aria-label="Song name">
-          <button id="song-save" class="btn ghost" type="button">Save song</button>
+          <button id="song-save" class="btn ghost" type="button">save song</button>
         </div>
         <div id="arrangement-issues" class="issues small"></div>
         <div id="timeline" class="timeline"></div>
       </section>
-      <section class="activity-section">
-        <h2>Activity</h2>
+      <section class="module">
+        <h2 class="module-head"><span class="module-index">05</span>log</h2>
         <div id="activity" class="activity"></div>
       </section>
     </aside>

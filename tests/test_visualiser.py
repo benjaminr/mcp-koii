@@ -39,7 +39,7 @@ def command(visualiser, name, body=None):
 
 def test_serves_the_page_and_its_scripts(visualiser):
     status, content_type, body = request(visualiser, "GET", "/")
-    assert status == 200 and content_type.startswith("text/html") and b"KOII Visualiser" in body
+    assert status == 200 and content_type.startswith("text/html") and b"<title>koii visualiser</title>" in body
     status, content_type, _ = request(visualiser, "GET", "/app.js")
     assert status == 200 and content_type.startswith("text/javascript")
 
