@@ -11,7 +11,7 @@ import { Notation } from "./notation.js";
 import { roleForName, roleForPad, roleForTrack } from "./roles.js";
 import { SoundDesigner } from "./designer.js";
 import { SampleBrowser } from "./samples.js";
-import { SoundScope, permittedDeviceInput } from "./sound.js";
+import { LiveStrip, permittedDeviceInput } from "./sound.js";
 
 const $ = (selector) => document.querySelector(selector);
 const STORAGE_KEY = "koii.editor";
@@ -96,19 +96,8 @@ const designer = new SoundDesigner({
     songs: (state.server?.library.songs || []).map((song) => song.name),
   }),
 });
-const sound = new SoundScope({
-  scope: $("#scope-canvas"),
-  spectrum: $("#spectrum-canvas"),
-  spectrogram: $("#spectrogram-canvas"),
-  meters: $("#meters-canvas"),
-  balance: $("#balance-canvas"),
-  readout: $("#sound-readout"),
-  strip: $("#strip-canvas"),
-}, (status) => {
-  $("#sound-status").textContent = status.text;
-  $("#sound-status").classList.toggle("on", status.listening);
-  $("#listen-btn").setAttribute("aria-pressed", String(status.listening));
-  $("#live-strip").setAttribute("aria-pressed", String(status.listening));
+const sound = new LiveStrip($("#strip-canvas"), (status) => {
+  $("#strip-toggle").setAttribute("aria-pressed", String(status.listening));
   $("#strip-status").textContent = status.listening ? status.label : "click to listen";
 });
 
@@ -468,7 +457,6 @@ function frame() {
   const { section, beat, elapsed, total } = position;
   $("#np-fill").style.width = `${Math.min(100, (elapsed / total) * 100)}%`;
   const sixteenth = Math.floor((beat % 1) * 4 + 1e-6) + 1;
-  sound.setBeat({ bar: Math.floor(beat / 4) + 1, beat: Math.floor(beat % 4) + 1 });
   device.setCounter(`${Math.floor(beat / 4) + 1}.${Math.floor(beat % 4) + 1}.${sixteenth}`);
   device.setBpm(section.bpm);
   const playhead = document.querySelector(".timeline-playhead");
@@ -781,11 +769,9 @@ function bindControls() {
     if (value) editModel((m) => model.addTrack(m, value, value.startsWith("ch")));
   });
 
-  $("#listen-btn").addEventListener("click", toggleListening);
-  $("#live-strip").addEventListener("click", toggleListening);
-  $("#sound-source").addEventListener("change", () => {
-    if (sound.running) startListening();
-  });
+  $("#strip-toggle").addEventListener("click", toggleListening);
+  // Choosing a source is a request to listen to it.
+  $("#strip-source").addEventListener("change", startListening);
   $("#arrangement").addEventListener("input", previewArrangement);
   $("#arr-play").addEventListener("click", () => playArrangement(false));
   $("#arr-loop").addEventListener("click", () => playArrangement(true));
@@ -840,7 +826,7 @@ async function listenIfAllowed() {
   } catch {
     choice = null;
   }
-  if (choice === "off" || sound.running || $("#sound-source").value !== "device") return;
+  if (choice === "off" || sound.running || $("#strip-source").value !== "device") return;
   const { permission, device } = await permittedDeviceInput();
   if (device) {
     await sound.listenToInput(device.deviceId).catch((error) => {
@@ -853,7 +839,7 @@ async function listenIfAllowed() {
 }
 
 async function startListening() {
-  const source = $("#sound-source").value;
+  const source = $("#strip-source").value;
   try {
     if (source === "simulator") {
       enableSound(true);

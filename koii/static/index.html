@@ -42,11 +42,17 @@
     </div>
     <button id="sound-btn" class="btn toggle" type="button" title="Play sounds in this browser (simulator voices)"><span class="led"></span>browser sound</button>
     <button id="layout-btn" class="btn toggle" type="button" aria-pressed="false" title="Move, resize and hide the modules"><span class="led"></span>layout</button>
-    <button id="live-strip" class="live-strip" type="button" aria-pressed="false" title="What the EP-133 is playing, live. Click to start or stop listening">
-      <span class="strip-tag">in</span>
-      <canvas id="strip-canvas" aria-hidden="true"></canvas>
-      <span id="strip-status" class="strip-status">not listening</span>
-    </button>
+    <div class="live-strip">
+      <button id="strip-toggle" class="strip-toggle" type="button" aria-pressed="false" title="What the EP-133 is playing, live. Click to start or stop listening (nothing is played back)">
+        <span class="strip-tag">in</span>
+        <canvas id="strip-canvas" aria-hidden="true"></canvas>
+        <span id="strip-status" class="strip-status">not listening</span>
+      </button>
+      <select id="strip-source" class="strip-source" aria-label="Listen to">
+        <option value="device">EP-133 audio</option>
+        <option value="simulator">browser simulator</option>
+      </select>
+    </div>
     <div id="layout-bar" class="layout-bar" hidden>
       <span class="layout-bar-title">editing the layout</span>
       <span class="layout-bar-help">drag a header to move it · drag the corner to resize (double-click it to fit) · drag the dotted line to split · <b>▾</b> collapses</span>
@@ -178,31 +184,8 @@
       <p class="hint">Uses the EP-133's private file protocol, one session at a time. Close TE's EP Sample Tool while you use this.</p>
     </section>
 
-    <section class="module sound-panel" data-module="sound" data-span="12" aria-label="Sound">
-      <h2 class="module-head"><span class="module-index">07</span>sound</h2>
-      <div class="sound-head">
-        <button id="listen-btn" class="btn toggle" type="button" aria-pressed="false" title="Analyse the sound (asks once for permission to use the EP-133 audio input)"><span class="led"></span>listen</button>
-        <label><span class="setting-name">source</span>
-          <select id="sound-source">
-            <option value="device">EP-133 audio (USB)</option>
-            <option value="simulator">browser simulator voices</option>
-          </select>
-        </label>
-        <span id="sound-status" class="sound-status">not listening</span>
-        <span id="sound-readout" class="sound-readout num"></span>
-      </div>
-      <div class="sound-grid" data-regions="sound" data-regions-wide>
-        <figure class="screen-panel" data-region="scope" data-region-label="scope"><figcaption>scope</figcaption><canvas id="scope-canvas"></canvas></figure>
-        <figure class="screen-panel spectrum" data-region="spectrum" data-region-label="spectrum"><figcaption>spectrum</figcaption><canvas id="spectrum-canvas"></canvas></figure>
-        <figure class="screen-panel" data-region="levels" data-region-label="levels"><figcaption>levels · dBFS</figcaption><canvas id="meters-canvas"></canvas></figure>
-        <figure class="screen-panel" data-region="balance" data-region-label="balance"><figcaption>balance</figcaption><canvas id="balance-canvas"></canvas></figure>
-        <figure class="screen-panel" data-region="spectrogram" data-wide data-region-label="spectrogram"><figcaption>spectrogram · beats and bars from the playhead</figcaption><canvas id="spectrogram-canvas"></canvas></figure>
-      </div>
-      <p class="hint">Listening only: nothing is played back. The EP-133 appears as a USB audio input; the browser asks once for permission to use it.</p>
-    </section>
-
     <section class="module designer-panel" data-module="design" data-span="12" aria-label="Sound design">
-      <h2 class="module-head"><span class="module-index">08</span>sound design</h2>
+      <h2 class="module-head"><span class="module-index">07</span>sound design</h2>
       <div class="designer-head">
         <select id="designer-start" class="designer-start" aria-label="Start from a preset or a saved design"></select>
         <input id="designer-name" class="name-input small" maxlength="40" placeholder="name" spellcheck="false" aria-label="Design name">

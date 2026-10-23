@@ -1,4 +1,4 @@
-// The sound designer (module 08): edits a design, has the server render and
+// The sound designer (module 07): edits a design, has the server render and
 // analyse it (the same engine Claude uses over MCP), plays it here or through
 // the EP-133's own outputs, explores variations and morphs, keeps a library,
 // and uploads the result with its instrument settings.

@@ -69,14 +69,12 @@ pads you press on the device.
 - **Library and arranger:** open, play, loop and delete saved patterns, build songs on a
   timeline, and download `.mid` files.
 - **Activity:** each MCP call Claude makes, with **Open in editor** for its patterns.
-- **Sound:** the EP-133 is also a USB audio device, so the page can listen to what it
-  actually plays: oscilloscope, spectrum, a spectrogram marked with beats and bars, stereo
-  level meters (dBFS, peak hold, clip) and a four-band balance view. It only listens; the
-  browser asks once for permission. It can also analyse the browser simulator's voices.
-  A **live strip** in the top bar (spectrum and stereo meters) is always in view. Once the
-  browser may use the EP-133's audio input, listening starts by itself whenever the
-  EP-133 is plugged in; it never falls back to your microphone. Click the strip to stop or
-  start it; stopping it keeps it off on later visits.
+- **Live strip:** the EP-133 is also a USB audio device, so a strip across the top bar
+  shows what it actually plays: spectrum as LED columns, stereo meters with peak hold and
+  clip lights, and the peak level. It only listens. Once the browser may use the EP-133's
+  audio input, listening starts by itself whenever the EP-133 is plugged in, and it never
+  falls back to your microphone. Click the strip to stop or start it (stopping keeps it
+  off on later visits), or switch it to the browser simulator's voices.
 - **Samples:** the EP-133's sample library (all 999 slots), with search, waveforms,
   metadata, play-on-device, WAV download and backups with progress. This uses the device's
   private file protocol as reverse-engineered by

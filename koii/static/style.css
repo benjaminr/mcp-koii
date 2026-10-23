@@ -519,17 +519,8 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .score .rest-stroke { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .score .rest-dot { fill: var(--ink); }
 
-/* -- sound ------------------------------------------------------------------- */
+/* -- screens ------------------------------------------------------------------- */
 
-.sound-head { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
-.sound-head label { display: inline-flex; gap: 7px; align-items: center; }
-.sound-head select { background: #fff; border: var(--line) solid var(--ink); border-radius: 3px; padding: 4px 6px; }
-.sound-status { color: var(--muted); font-size: 12px; }
-.sound-status.on { color: var(--ink); }
-.sound-readout { margin-left: auto; font-size: 13px; }
-.sound-grid { display: grid; grid-template-columns: 1.1fr 2fr 1.1fr 0.8fr; gap: 12px; }
-.sound-grid .region-wide canvas { height: 170px; }
-@media (max-width: 1000px) { .sound-grid { grid-template-columns: 1fr 1fr; } }
 .screen-panel {
   margin: 0; display: flex; flex-direction: column;
   background: var(--screen); border: var(--line) solid var(--ink); border-radius: 3px;
@@ -757,21 +748,29 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 /* -- the live strip ------------------------------------------------------------------- */
 
 .live-strip {
-  flex-basis: 100%; order: 10; display: flex; align-items: center; gap: 10px; min-width: 0;
-  margin: -4px 0 -2px; padding: 5px 10px 5px 4px; height: 74px;
-  background: var(--screen); color: var(--screen-text);
-  border: var(--line) solid var(--ink); border-radius: 3px; cursor: pointer; text-align: left;
+  flex-basis: 100%; order: 10; display: flex; align-items: stretch; gap: 0; min-width: 0;
+  margin: -4px 0 -2px; height: 74px;
+  background: var(--screen); border: var(--line) solid var(--ink); border-radius: 3px; overflow: hidden;
 }
-.live-strip:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+.strip-toggle {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 5px 10px 5px 4px;
+  background: none; border: 0; color: var(--screen-text); cursor: pointer; text-align: left;
+}
+.strip-toggle:focus-visible, .strip-source:focus-visible { outline: 2px solid var(--signal); outline-offset: -2px; }
 .strip-tag {
   font-family: var(--num); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
-  background: var(--dim, #2a2724); color: #8f897e; padding: 1px 6px; border-radius: 2px;
+  background: #2a2724; color: #8f897e; padding: 1px 6px; border-radius: 2px;
 }
-.live-strip[aria-pressed="true"] .strip-tag { background: var(--signal); color: var(--ink); }
-.live-strip canvas { flex: 1; min-width: 0; height: 62px; display: block; }
+.strip-toggle[aria-pressed="true"] .strip-tag { background: var(--signal); color: var(--ink); }
+.strip-toggle canvas { flex: 1; min-width: 0; height: 62px; display: block; }
 .strip-status {
   font-family: var(--num); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #8f897e;
   max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.live-strip[aria-pressed="true"] .strip-status { color: var(--screen-text); }
+.strip-toggle[aria-pressed="true"] .strip-status { color: var(--screen-text); }
+.strip-source {
+  align-self: center; margin-right: 8px; background: #1b1a1d; color: var(--screen-text);
+  border: 1px solid #3a383c; border-radius: 2px; padding: 3px 4px;
+  font-family: var(--num); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+}
 .layout-bar { order: 11; }
