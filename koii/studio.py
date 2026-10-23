@@ -21,6 +21,7 @@ from koii.notation import (
     NotationError, looks_like_pattern, note_name, parse_target, pattern_to_dict, render_pattern,
 )
 from koii.player import Player
+from koii.pads import PadEditor
 from koii.samples import DeviceLibrary
 from koii.sound_design import SoundDesigner
 from koii.score import build_score, score_to_dict, score_to_musicxml
@@ -68,6 +69,7 @@ class Studio:
         self.player = Player(self._send, notify=self.events.publish)
         self.samples = DeviceLibrary(self.events, self.library.home)
         self.designer = SoundDesigner(self.events, self.library.home, self.samples)
+        self.pads = PadEditor(self.events, self.library.home, self.samples.client)   # one file client, one lock
 
     # -- connection ---------------------------------------------------------
 

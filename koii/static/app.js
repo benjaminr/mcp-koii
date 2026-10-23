@@ -7,6 +7,7 @@ import { Device, Keys, noteName, noteToPad } from "./device.js";
 import { BRUSHES, Grid, renderKey } from "./grid.js";
 import { LayoutEditor } from "./layout.js";
 import { Arranger, makeDraggable } from "./arranger.js";
+import { PadPanel } from "./pads.js";
 import * as model from "./model.js";
 import { Notation } from "./notation.js";
 import { roleForName, roleForPad, roleForTrack } from "./roles.js";
@@ -58,7 +59,11 @@ const editor = {
 
 const synth = new BrowserSynth();
 const device = new Device($("#device"), {
-  onPad: auditionPad,
+  onPad: (label) => {
+    auditionPad(label);
+    const connection = state.server?.connection;
+    if (connection?.connected && !connection.simulated) padPanel.select(label);   // and show its settings
+  },
   onTransport: (action) => {
     if (action === "play") return togglePlay();
     const delta = action === "plus" ? 1 : -1;
@@ -101,6 +106,7 @@ const designer = new SoundDesigner({
     songs: (state.server?.library.songs || []).map((song) => song.name),
   }),
 });
+const padPanel = new PadPanel({ toast, run });
 const arranger = new Arranger($("#arranger"), {
   getLibrary: () => state.server?.library,
   onChange: (text) => {
@@ -502,6 +508,7 @@ function onEvent(event) {
       return;
     case "activity": return addActivity(event);
     case "backup": return samples.onBackup(event);
+    case "pad": return padPanel.onEvent(event);
     case "design":
     case "designs":
     case "kit":

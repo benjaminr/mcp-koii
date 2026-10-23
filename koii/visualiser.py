@@ -149,6 +149,9 @@ def _commands(studio: Studio) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
         "upload_sample": lambda b: studio.samples.upload(int(required(b, "slot")), _pcm(required(b, "pcm")),
                                                          str(b.get("name") or "koii sound"), int(b.get("channels", 1))),
         "delete_upload": lambda b: designer.delete_upload(int(required(b, "slot"))),
+        "pads": lambda b: studio.pads.get(b.get("group"), b.get("pad")),
+        "pad_set": lambda b: studio.pads.set(required(b, "pad"), **dict(required(b, "settings"))),
+        "pad_undo": lambda b: studio.pads.undo(),
         "disconnect": lambda b: studio.disconnect(),
         **_designer_commands(studio, required),
     }
@@ -213,7 +216,7 @@ def _pcm(encoded: str) -> bytes:
 _QUIET_COMMANDS = {"check", "arrangement", "samples", "backup_status", "suggest_slot",
                    "design_schema", "design_new", "design_preset", "design_preview", "design_vary", "design_morph",
                    "design_get", "design_library", "design_for_slot", "kit", "kit_status", "source_get",
-                   "source_design", "bounce_plan"}
+                   "source_design", "bounce_plan", "pads"}
 
 
 def full_state(studio: Studio) -> Dict[str, Any]:

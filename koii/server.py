@@ -261,6 +261,55 @@ def list_device_sounds(search: Optional[str] = None) -> str:
 
 
 @tool
+def get_pads(group: Optional[str] = None, pad: Optional[str] = None) -> str:
+    """
+    Show the pads in the project open on the EP-133: each pad's sound slot, MIDI channel, play
+    mode, level and release. Give group (A–D) or one pad (e.g. "D1") to narrow it. Read-only.
+    """
+    result = studio.pads.get(group, pad)
+    lines = [f"project {result['project']}:"]
+    for each in result["pads"]:
+        if not each["sound"]:
+            lines.append(f"  {each['pad']:<7} empty" + (f" · ch{each['channel']}" if each["channel"] else ""))
+            continue
+        lines.append(f"  {each['pad']:<7} sound {each['sound']:>3} · " + (f"ch{each['channel']}" if each["channel"] else "no channel")
+                     + f" · {each['mode']} · level {each['level']} · release {each['release']}")
+    return "\n".join(lines)
+
+
+@tool
+def set_pad(pad: str, sound: Optional[int] = None, channel: Optional[str] = None, mode: Optional[str] = None,
+            level: Optional[int] = None, attack: Optional[int] = None, release: Optional[int] = None,
+            pan: Optional[int] = None) -> str:
+    """
+    Change one pad in the project open on the EP-133, live, without touching its knobs:
+    sound (a sample slot 1–999), channel (MIDI 1–16, or "none"), mode (oneshot, key or legato;
+    chords need key), level 0–100, attack and release 0–255, pan -16..16. Leave a setting out to
+    keep it. The device's read-back is checked, and undo_pad_change puts the last change back.
+
+    A pad on its own channel plays pitched tracks on that channel: give a keys sound channel 3,
+    and 'chords: …' with 'chords notes: C3+E3+G3' (alias chords = ch3) plays it in tune. For
+    pitches from C2 up, the EP-133's system MIDI channel should be 1 (code 111; see DEVICE.md).
+    """
+    if channel is not None and str(channel).strip().lower() not in ("none", "off", "0"):
+        try:
+            channel = int(str(channel).lower().removeprefix("ch"))
+        except ValueError:
+            raise ValueError(f"channel must be 1–16 or none, not {channel!r}")
+    elif channel is not None:
+        channel = "none"
+    settings = {"sound": sound, "channel": channel, "mode": mode, "level": level, "attack": attack,
+                "release": release, "pan": pan}
+    return studio.pads.set(pad, **settings)["message"]
+
+
+@tool
+def undo_pad_change() -> str:
+    """Put back the pad changed most recently by set_pad, as it was before."""
+    return studio.pads.undo()["message"]
+
+
+@tool
 def play_sample(slot: int) -> str:
     """Audition a sample slot on the EP-133 itself (raw sample, no trim or envelope)."""
     return studio.samples.audition(slot)

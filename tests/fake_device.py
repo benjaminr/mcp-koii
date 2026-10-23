@@ -17,9 +17,11 @@ def sound(name, pcm, **metadata):
 
 
 class FakeEP133:
-    def __init__(self, sounds, projects=None):
+    def __init__(self, sounds, projects=None, pads=None, active_project=1):
         self.sounds = sounds                  # slot -> (name, pcm, metadata)
         self.projects = projects or {}        # fid -> (name, tar bytes)
+        self.pads = pads or {}                # pad node -> metadata
+        self.active_project = active_project
         self.inbox = deque()
         self.requests = []
         self.misbehave = None
@@ -71,9 +73,15 @@ class FakeEP133:
             return 0, bytes(body)
         if command == 0x07 and payload[1] == 0x02:
             slot = int.from_bytes(payload[2:4], "big")
-            if slot not in self.sounds:
+            if slot == files.PROJECTS_NODE:
+                metadata = {"active": 3000 + (self.active_project - 1) * 1000}
+            elif slot in self.pads or 3200 <= slot < 12000:
+                metadata = self.pads.get(slot, {"sym": 0})
+            elif slot not in self.sounds:
                 return 1, b"invalid id"
-            return 0, (0).to_bytes(2, "big") + json.dumps(self.sounds[slot][2]).encode() + b"\0"
+            else:
+                metadata = self.sounds[slot][2]
+            return 0, (0).to_bytes(2, "big") + json.dumps(metadata).encode() + b"\0"
         if command == 0x03 and payload[1] == 0x00:
             node = int.from_bytes(payload[2:4], "big")
             name, data = self._file(node)
@@ -107,11 +115,21 @@ class FakeEP133:
         if command == 0x07 and payload[1] == 0x01:
             node = int.from_bytes(payload[2:4], "big")
             values = json.loads(payload[4:].split(b"\0", 1)[0])
+            if 3200 <= node < 12000:
+                pad = dict(self.pads.get(node, {"sym": 0}))
+                if values.get("sym"):  # like the device: a new sample brings its own defaults
+                    defaults = self.sounds[values["sym"]][2]
+                    pad.update({"envelope.attack": defaults.get("envelope.attack", 0),
+                                "sound.pitch": defaults.get("sound.pitch", 0.0)})
+                self.pads[node] = {**pad, **values}
+                return 0, b""
             name, data, metadata = self.sounds[node]
             self.sounds[node] = (name, data, {**metadata, **values})
             return 0, b""
         if command == 0x0B:
             node = int.from_bytes(payload[1:3], "big")
+            if node not in self.sounds and node not in self.projects:
+                return 1, b"invalid id"
             name, data = self._file(node)
             return 0, node.to_bytes(2, "big") + (1000).to_bytes(2, "big") + bytes([0x1D]) + len(data).to_bytes(4, "big") + name.encode() + b"\0"
         if command == 0x06:

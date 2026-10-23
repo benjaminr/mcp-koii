@@ -71,6 +71,23 @@
           <div class="caption">pitched notes · midi channels</div>
           <div id="keys"></div>
         </div>
+        <div class="pad-panel" data-region="pads" data-region-label="pad settings">
+          <div class="caption">pad settings · on the EP-133, live · click a pad above to pick it</div>
+          <div class="pad-form">
+            <select id="pad-select" class="pad-select" aria-label="Pad"></select>
+            <button id="pad-read" class="btn ghost small" type="button" title="Read this pad's settings from the device">read</button>
+            <label class="pad-field"><span class="setting-name">sound</span>
+              <input id="pad-sound" class="slot-input num" type="number" min="1" max="999" placeholder="slot" aria-label="Sound slot"></label>
+            <label class="pad-field"><span class="setting-name">channel</span><select id="pad-channel" aria-label="MIDI channel"></select></label>
+            <label class="pad-field"><span class="setting-name">mode</span>
+              <select id="pad-mode" aria-label="Play mode"><option value="oneshot">oneshot</option><option value="key">key</option><option value="legato">legato</option></select></label>
+            <label class="pad-field pad-level"><span class="setting-name">level</span>
+              <input id="pad-level" type="range" min="0" max="100" value="100" aria-label="Level"><span id="pad-level-value" class="num">100</span></label>
+            <button id="pad-apply" class="btn small" type="button" title="Write the changed settings to the pad">apply</button>
+            <button id="pad-undo" class="btn ghost small" type="button" title="Put back the last pad change">undo</button>
+          </div>
+          <div id="pad-status" class="pad-status"></div>
+        </div>
         <p class="hint" data-region="hint" data-region-label="hint">Pads light <b class="swatch play"></b> for notes sent and <b class="swatch press"></b> when you press them on the device. Click a pad to hear it.</p>
       </div>
     </section>

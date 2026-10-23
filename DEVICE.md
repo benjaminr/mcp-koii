@@ -135,12 +135,23 @@ On hardware, a C3–G3 run on channel 2 played the bass *and* the group B pads a
   keys pad on channel 3, four-note chords from D3 to C4 played only the keys, with no
   drum pads firing on the shared note numbers.
 
-Each pad's channel, root note, play mode and level live in the project's pad records
-(see [ep-series-sysex's project format](https://github.com/kmorrill/ep-series-sysex)), so
-they could be written over the file protocol; koii doesn't do that yet. System settings
-such as 111 can't be reached over USB and are set by hand. A pad keeps its own copy of
-the level and play mode from when its sound was assigned, so changing a sample's
-settings later may not reach a pad that already uses it.
+**Pads can be set over USB** (koii's `set_pad`, or *pad settings* in the visualiser): each
+pad is a node in the file tree (`3200 + (project − 1) × 1000 + group × 100 + n`, with `n`
+counting the keypad from the top row: 7 8 9 = 1–3, 4 5 6 = 4–6, 1 2 3 = 7–9, . 0 ENTER =
+10–12), and its settings are a small JSON object that merges like a sample's: `sym` (the
+sample slot), `midi.channel` (0 = none), `sound.playmode` (with `envelope.release`),
+`sound.amplitude`, `envelope.attack`, `sound.pan`. The open project is `/projects`'s
+`active` value (3000 = project 1). **Tested on hardware (OS 2.5):** changes take effect
+straight away, with no reload; reading a pad back shows exactly what was set by hand on
+the device; and changing `sym` makes the pad take the new sample's own defaults (attack,
+fine tune) except for anything written in the same change. System settings such as 111
+can't be reached over USB and are set by hand.
+
+A pad keeps its own copy of the level and play mode from when its sound was assigned, so
+changing a sample's settings afterwards doesn't reach a pad that already uses it: set the
+pad instead. Chords need the pad in **KEY** mode (ONESHOT plays one note at a time, and
+retriggering it for every note of a chord sounds clicky and distorted) and a level of
+about 50–60, since four notes at full level overload the output.
 
 KEYS mode does something similar on the device itself: it spreads the selected pad's
 sample chromatically across the 12 pads, and in that mode the EP-133 accepts the full

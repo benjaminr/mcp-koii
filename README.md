@@ -115,6 +115,10 @@ pads you press on the device.
   the corner) and hide them; reorder or hide the parts inside them; and drag the line
   between two-column areas. **▾** collapses a module at any time. The layout is kept in
   this browser; **reset** goes back to the default.
+- **Pad settings:** click a pad on the simulated device to see what it plays on the real one,
+  and change its sound slot, MIDI channel, play mode or level there, live. This is how a
+  pad becomes a melodic voice: give a keys sound channel 3, and patterns' `chords` track
+  (an alias for ch3) plays it in tune. See [DEVICE.md](DEVICE.md#playing-pitches-basslines-chords-melodies).
 - **No device?** Choose *Browser simulator* (top right) and the page plays synthesised
   drums and bass itself.
 
@@ -167,6 +171,7 @@ sources and what has been checked on hardware, are in **[DEVICE.md](DEVICE.md)**
 | `save_design`, `list_designs` | the design library, plus recorded and loaded sources |
 | `upload_design`, `change_sound_settings` | put a design on the device as an instrument (root, loop, play mode); change an upload's settings in place |
 | `make_kit`, `kit_status`, `chop_source` | twelve-sound kits in a style; slices from a recording; uploads to slots in a row |
+| `get_pads`, `set_pad`, `undo_pad_change` | read or change pads on the EP-133 over USB: sound slot, MIDI channel, play mode, level, envelope, pan (live, checked, undoable) |
 | `open_visualiser` | open the live browser view |
 | `show_kit`, `set_alias`, `remove_alias`, `list_factory_sounds` | the kit |
 

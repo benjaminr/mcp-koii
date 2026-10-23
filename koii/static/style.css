@@ -865,3 +865,15 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .song-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
 .song-select { background: #fff; border: var(--line) solid var(--ink); border-radius: 3px; padding: 5px 6px; min-width: 180px; }
 .song-bar .name-input.small { flex: 1 1 160px; }
+
+/* -- pad settings (device module) ---------------------------------------------------- */
+
+.pad-panel { border-top: 1px dashed var(--ink-2); padding-top: 10px; }
+.pad-form { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 12px; }
+.pad-form select, .pad-form .slot-input { background: #fff; border: var(--line) solid var(--ink); border-radius: 3px; padding: 3px 5px; }
+.pad-form .slot-input { width: 64px; }
+.pad-field { display: inline-flex; gap: 5px; align-items: center; }
+.pad-level input { width: 90px; accent-color: var(--signal); }
+.pad-level .num { min-width: 22px; text-align: right; }
+.pad-status { font-size: 12px; color: var(--ink-2); margin-top: 6px; min-height: 16px; }
+.pad-status.failed { color: #c23b0b; }
