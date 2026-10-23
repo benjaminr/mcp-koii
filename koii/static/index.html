@@ -188,26 +188,125 @@
     <section class="module designer-panel" aria-label="Sound design">
       <h2 class="module-head"><span class="module-index">08</span>sound design</h2>
       <div class="designer-head">
-        <div id="designer-presets" class="brushes designer-presets" role="toolbar" aria-label="Starting points"></div>
-        <button id="designer-randomise" class="btn ghost" type="button" title="Vary the current preset">randomise</button>
-        <label class="btn ghost file-btn" title="Load a WAV, MP3, AIFF… and convert it to the device's format">
-          load audio file<input id="designer-file" type="file" accept="audio/*">
-        </label>
-        <label class="stereo-option"><input id="designer-stereo" type="checkbox"> keep stereo</label>
-      </div>
-      <div class="designer-body">
-        <div id="designer-controls" class="designer-controls"></div>
-        <div class="designer-output">
-          <figure class="screen-panel"><figcaption>sound · 46,875 Hz, 16-bit, normalised to −1 dB</figcaption><canvas id="designer-wave"></canvas></figure>
-          <div id="designer-readout" class="num designer-readout"></div>
-          <div class="row">
-            <button id="designer-preview" class="btn" type="button" title="Hear it in this browser">▶ preview here</button>
-            <input id="designer-name" class="name-input small" maxlength="20" placeholder="name (20 characters)" spellcheck="false" aria-label="Sample name">
-            <input id="designer-slot" class="slot-input num" type="number" min="1" max="999" placeholder="slot" title="Leave empty for the next free slot from 600" aria-label="Slot">
-            <button id="designer-upload" class="btn primary" type="button">⤒ upload to device</button>
-          </div>
-          <p class="hint">Uploads go to empty slots only (or ones koii uploaded itself), need a complete backup, and are checked against the device's checksum. Then on the EP-133: press <b>SOUND</b>, choose a pad, and use <b>−</b> / <b>+</b> until the screen shows the slot number.</p>
+        <select id="designer-start" class="designer-start" aria-label="Start from a preset or a saved design"></select>
+        <input id="designer-name" class="name-input small" maxlength="40" placeholder="name" spellcheck="false" aria-label="Design name">
+        <button id="designer-save" class="btn" type="button" title="Keep this design in the library (~/.koii/designs.json)">save</button>
+        <button id="designer-delete" class="btn ghost" type="button" title="Remove this design from the library" hidden>delete</button>
+        <span id="designer-status" class="designer-status num"></span>
+        <div class="tabs" role="tablist">
+          <button class="tab active" type="button" role="tab" data-designer-tab="design">design</button>
+          <button class="tab" type="button" role="tab" data-designer-tab="sample">sample</button>
+          <button class="tab" type="button" role="tab" data-designer-tab="kit">kit</button>
         </div>
+      </div>
+
+      <div id="designer-page-design" class="designer-page">
+        <div class="designer-body">
+          <div id="designer-controls" class="design-controls"></div>
+          <div class="designer-output">
+            <figure class="screen-panel"><figcaption>sound · as the device will get it</figcaption><canvas id="designer-wave"></canvas></figure>
+            <div class="designer-screens">
+              <figure class="screen-panel"><figcaption>spectrum</figcaption><canvas id="designer-spectrum"></canvas></figure>
+              <figure class="screen-panel"><figcaption>spectrogram</figcaption><canvas id="designer-spectrogram"></canvas></figure>
+            </div>
+            <dl id="designer-facts" class="sample-facts designer-facts"></dl>
+            <ul id="designer-notes" class="designer-notes"></ul>
+            <p id="designer-similar" class="designer-similar"></p>
+            <div class="row">
+              <button id="designer-play" class="btn primary" type="button" title="Play (space)">▶ play</button>
+              <button id="designer-hold" class="btn toggle" type="button" aria-pressed="false" title="Hold: sustain on the loop, like a held pad in key mode"><span class="led"></span>hold</button>
+              <button id="designer-stop" class="btn ghost" type="button">■</button>
+              <label class="designer-output-choice"><span class="setting-name">out</span>
+                <select id="designer-output" aria-label="Play through"></select>
+              </label>
+            </div>
+
+            <fieldset class="param-group designer-explore">
+              <legend>explore</legend>
+              <div class="row">
+                <label class="param explore-amount"><span class="param-name">amount</span>
+                  <input id="vary-amount" type="range" min="0" max="100" value="30"><span id="vary-amount-value" class="param-value num">0.30</span></label>
+                <button id="vary-btn" class="btn" type="button" title="Six variations of this sound">vary ×6</button>
+              </div>
+              <div id="vary-locks" class="vary-locks" aria-label="Keep these fixed"></div>
+              <div id="vary-results" class="vary-results"></div>
+              <div class="row morph-row">
+                <span class="param-name">morph to</span>
+                <select id="morph-target" aria-label="Morph towards"></select>
+                <input id="morph-amount" type="range" min="0" max="100" value="50" aria-label="Morph amount">
+                <span id="morph-value" class="param-value num">0.50</span>
+                <button id="morph-btn" class="btn ghost" type="button">morph</button>
+              </div>
+            </fieldset>
+
+            <div class="row">
+              <input id="designer-slot" class="slot-input num" type="number" min="1" max="999" placeholder="slot" title="Leave empty for the next free slot from 600" aria-label="Slot">
+              <button id="designer-upload" class="btn primary" type="button">⤒ upload to device</button>
+            </div>
+            <p class="hint">Uploads set the root note, loop and play mode for you, go to empty slots only (or ones koii uploaded), need a complete backup, and are checked against the device's checksum. Then on the EP-133: press <b>SOUND</b>, choose a pad, and use <b>−</b> / <b>+</b> until the screen shows the slot number.</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="designer-page-sample" class="designer-page" hidden>
+        <div class="row sample-actions">
+          <button id="sampler-record" class="btn toggle" type="button" aria-pressed="false" title="Record the EP-133's audio (USB input)"><span class="led rec"></span>record</button>
+          <label class="btn ghost file-btn" title="Load a WAV, AIFF, MP3… (converted to 46,875 Hz)">load file<input id="sampler-file" type="file" accept="audio/*"></label>
+          <span class="divider"></span>
+          <span class="param-name">bounce</span>
+          <select id="bounce-what" aria-label="Pattern or song to bounce"></select>
+          <button id="bounce-btn" class="btn" type="button" title="Play it on the EP-133 once and record the result as a tempo-synced loop">● bounce</button>
+          <span id="sampler-status" class="designer-status num"></span>
+        </div>
+        <div class="sampler-body">
+          <div id="sampler-sources" class="sample-list sampler-sources"></div>
+          <div class="sampler-editor">
+            <figure class="screen-panel"><figcaption id="sampler-title">drag across the wave to select</figcaption><canvas id="sampler-wave"></canvas></figure>
+            <div class="row">
+              <button id="sampler-play" class="btn primary" type="button">▶ play</button>
+              <button class="btn small" type="button" data-edit="trim" title="Keep only the selection">trim to selection</button>
+              <button class="btn small" type="button" data-edit="trim_silence">trim silence</button>
+              <button class="btn small" type="button" data-edit="fade">fades</button>
+              <button class="btn small" type="button" data-edit="reverse">reverse</button>
+              <button class="btn small" type="button" data-edit="normalise">normalise</button>
+              <button class="btn small" type="button" data-edit="mono">mono</button>
+              <label class="inline-number"><input id="edit-semitones" class="slot-input num" type="number" min="-36" max="36" step="1" value="12"><button class="btn small" type="button" data-edit="pitch">pitch st</button></label>
+              <label class="inline-number"><input id="edit-stretch" class="slot-input num" type="number" min="0.25" max="4" step="0.05" value="2"><button class="btn small" type="button" data-edit="stretch">stretch ×</button></label>
+            </div>
+            <div id="sampler-edits" class="sampler-edits"></div>
+            <div class="row">
+              <button id="sampler-keep" class="btn" type="button" title="Save the edited sound as a new source">keep edit</button>
+              <button id="sampler-design" class="btn" type="button" title="Open in the designer as a sample layer: granulate, filter, layer it">design with it</button>
+              <button id="sampler-upload" class="btn primary" type="button">⤒ upload as is</button>
+              <button id="sampler-delete" class="btn ghost" type="button">delete</button>
+            </div>
+            <fieldset class="param-group">
+              <legend>chop</legend>
+              <div class="row">
+                <select id="chop-mode" aria-label="How to chop"><option value="onsets">at hits</option><option value="even">equal slices</option></select>
+                <label class="param explore-amount" id="chop-sensitivity-row"><span class="param-name">sensitivity</span><input id="chop-sensitivity" type="range" min="0" max="100" value="50"></label>
+                <input id="chop-count" class="slot-input num" type="number" min="1" max="48" value="8" hidden aria-label="Slices">
+                <button id="chop-btn" class="btn" type="button">chop</button>
+                <button id="slices-upload" class="btn primary" type="button" hidden>⤒ upload slices</button>
+              </div>
+              <p id="chop-summary" class="hint"></p>
+            </fieldset>
+          </div>
+        </div>
+        <p class="hint">Recording uses the EP-133's USB audio input (the browser asks once). Sources live in ~/.koii/sources; edits never change the original. Device sounds can be sampled too: in a sample layer, type a slot number.</p>
+      </div>
+
+      <div id="designer-page-kit" class="designer-page" hidden>
+        <div class="row">
+          <div id="kit-styles" class="brushes kit-styles" role="toolbar" aria-label="Kit style"></div>
+          <button id="kit-upload" class="btn primary" type="button">⤒ upload kit</button>
+        </div>
+        <div id="kit-progress" class="backup-progress" hidden>
+          <div class="np-bar"><div id="kit-fill" class="np-fill"></div></div>
+          <span id="kit-text" class="backup-text"></span>
+        </div>
+        <div id="kit-pads" class="kit-pads"></div>
+        <p class="hint">Twelve sounds for group A, in pad order. Click a pad to hear it, double-click to open it in the designer. Uploading uses twelve empty slots in a row; then assign each pad on the device (press <b>SOUND</b>, hold the pad, − / + to the slot).</p>
       </div>
     </section>
   </main>

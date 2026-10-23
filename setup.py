@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mcp-koii",
-    version="0.3.0",
+    version="0.4.0",
     description="MCP Interface for EP-133 K.O. II",
     author="Ben Rowell",
     packages=find_packages(exclude=["tests"]),
@@ -14,6 +14,8 @@ setup(
         "mido>=1.2.10",
         "python-rtmidi>=1.5",
         "mcp[cli]>=1.5,<2",
+        "numpy>=1.24",      # the sound engine and analysis
+        "scipy>=1.10",
     ],
     entry_points={
         "console_scripts": [

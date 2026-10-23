@@ -77,11 +77,24 @@ pads you press on the device.
   private file protocol as reverse-engineered by
   [ep-series-sysex](https://github.com/kmorrill/ep-series-sysex); close TE's EP Sample Tool
   while using it, since the device handles one file session at a time.
-- **Sound design:** build kicks, snares, hats, claps, toms, basses, plucks and zaps from
-  layers (pitched body, filtered noise, click) with a tone filter, envelope and drive;
-  or load any audio file. It renders at the device's own 46,875 Hz, previews in the
-  browser and uploads to an empty slot. Uploads need a complete backup, never touch sounds
-  koii didn't upload, and are checked against the device's own checksum.
+- **Sound design:** a layered synthesiser and sampler that renders at the device's own
+  46,875 Hz (the same engine Claude uses):
+  - **Design:** up to six layers (analog, FM, pluck, modal, metal, additive, noise and
+    sample engines), each with envelopes, a pitch drop, a sweeping filter and LFOs, into
+    an effects chain (EQ, drive, lofi, compressor, transient, chorus, delay, reverb,
+    width).
+  - **Analysis and preview:** waveform, spectrum and spectrogram, pitch, loudness and
+    brightness, and the closest sounds already on the device. Play it here or through the
+    EP-133's own output.
+  - **Exploring:** variations with locks, morphing towards another sound, and a library
+    of saved designs.
+  - **Sample:** record the EP-133, bounce a pattern to a tempo-synced loop, load files,
+    edit (trim, fades, reverse, pitch, stretch) and chop at the hits.
+  - **Kit:** twelve sounds in a style (808, 909, lofi, acoustic, industrial, glitch).
+  - **Upload:** detects the root note and fine tune, finds a seamless loop and sets the
+    play mode, so pads play in tune and sustain. Uploads need a complete backup, never
+    touch sounds koii didn't upload, and are checked against the device's own checksum.
+    See **[SOUND_DESIGN.md](SOUND_DESIGN.md)**.
 - **No device?** Choose *Browser simulator* (top right) and the page plays synthesised
   drums and bass itself.
 
@@ -128,10 +141,15 @@ sources and what has been checked on hardware, are in **[DEVICE.md](DEVICE.md)**
 | `list_device_sounds`, `play_sample` | the samples stored on the EP-133 |
 | `backup_device`, `cancel_backup` | copy every sample (WAV) and project to `~/.koii/backups` |
 | `upload_sample`, `delete_upload` | put a WAV on the device (converted to 46,875 Hz), or remove koii's own uploads |
+| `sound_presets`, `sound_design_schema` | starting points, and every engine, effect and setting |
+| `design_sound`, `vary_sound`, `morph_sounds` | render and describe a design (shown in the visualiser), make variations, morph |
+| `save_design`, `list_designs` | the design library, plus recorded and loaded sources |
+| `upload_design`, `change_sound_settings` | put a design on the device as an instrument (root, loop, play mode); change an upload's settings in place |
+| `make_kit`, `kit_status`, `chop_source` | twelve-sound kits in a style; slices from a recording; uploads to slots in a row |
 | `open_visualiser` | open the live browser view |
 | `show_kit`, `set_alias`, `remove_alias`, `list_factory_sounds` | the kit |
 
-Prompts: `notation_guide`, `device_guide`, `make_a_beat`.
+Prompts: `notation_guide`, `device_guide`, `sound_design_guide`, `make_a_beat`, `design_a_sound`.
 
 ## Development
 
@@ -147,7 +165,11 @@ and a round trip through the browser editor's own JavaScript (needs Node).
 The code is in `koii/`: `notation` (parser), `sequence` (timing, swing, arrangements,
 MIDI files), `player` (background playback), `library` (persistence), `studio` (ties it
 together), `events` (live updates), `visualiser` (the web server, with the page in
-`koii/static/`) and `server` (MCP tools). Set `KOII_HOME` to keep the library somewhere else.
+`koii/static/`) and `server` (MCP tools). Device files: `files` (the SysEx file protocol),
+`backup` and `samples`. Sound design: `koii/synth/` (`schema` is the design format,
+`engine` and `dsp` render it, `analysis`, `instrument` for device settings, `variation`,
+`edit`, `presets`, and the `designs`, `sources` and `factory` stores), joined up by
+`sound_design`. Set `KOII_HOME` to keep the library, designs and sources somewhere else.
 
 ## Acknowledgements
 

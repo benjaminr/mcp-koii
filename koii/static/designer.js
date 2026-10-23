@@ -1,422 +1,447 @@
-// Sound design: build drum hits and short tonal sounds from a few layers
-// (pitched body, filtered noise, click), render them at the EP-133's own rate
-// (46,875 Hz, mono, 16-bit), preview them here, and upload them to an empty
-// slot on the device. An audio file can be loaded and converted the same way.
+// The sound designer (module 08): edits a design, has the server render and
+// analyse it (the same engine Claude uses over MCP), plays it here or through
+// the EP-133's own outputs, explores variations and morphs, keeps a library,
+// and uploads the result with its instrument settings.
+//
+// The sample and kit tabs live in sampler.js and kit.js; this file owns the
+// shared pieces (the current design, preview playback, the library list).
 
 import { command } from "./api.js";
+import { DesignControls, element, pressedTwice } from "./design-controls.js";
+import { drawSpectrogram, drawSpectrum, drawWave } from "./design-draw.js";
+import { KitBuilder } from "./kit.js";
+import { PreviewOutput } from "./preview-output.js";
+import { Sampler } from "./sampler.js";
 
-export const DEVICE_RATE = 46875;
-const NOTE_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
-
-// name, label, min, max, scale ("lin" or "log"), unit, decimals
-const PARAMETERS = [
-  ["group", "body"],
-  ["body", "level", 0, 1, "lin", "", 2],
-  ["pitch", "pitch", 20, 2000, "log", "Hz", 0],
-  ["drop", "pitch drop", 1, 12, "lin", "×", 1],
-  ["dropTime", "drop time", 1, 500, "log", "ms", 0],
-  ["group", "noise"],
-  ["noise", "level", 0, 1, "lin", "", 2],
-  ["noiseCutoff", "filter", 100, 16000, "log", "Hz", 0],
-  ["noiseQ", "focus", 0.1, 10, "log", "", 1],
-  ["group", "tone filter"],
-  ["cutoff", "start", 50, 18000, "log", "Hz", 0],
-  ["cutoffEnd", "end", 50, 18000, "log", "Hz", 0],
-  ["filterTime", "sweep", 5, 2000, "log", "ms", 0],
-  ["resonance", "resonance", 0.1, 15, "log", "", 1],
-  ["group", "envelope"],
-  ["attack", "attack", 0, 200, "lin", "ms", 0],
-  ["decay", "decay", 10, 3000, "log", "ms", 0],
-  ["length", "length", 0.05, 4, "log", "s", 2],
-  ["group", "character"],
-  ["drive", "drive", 0, 1, "lin", "", 2],
-  ["click", "click", 0, 1, "lin", "", 2],
-  ["bursts", "bursts", 1, 5, "lin", "", 0],
+const RENDER_DELAY_MS = 120;
+const LOCK_CHOICES = [
+  ["layers.*.params", "engines"],
+  ["layers.*.amp", "envelopes"],
+  ["layers.*.pitch", "pitch"],
+  ["layers.*.filter", "filters"],
+  ["effects", "effects"],
 ];
 
-const CHOICES = {
-  wave: ["sine", "triangle", "sawtooth", "square"],
-  noiseType: ["highpass", "bandpass", "lowpass"],
-};
+const $ = (id) => document.getElementById(id);
 
-const BASE = { body: 1, wave: "sine", pitch: 55, drop: 1, dropTime: 40, noise: 0, noiseType: "bandpass", noiseCutoff: 2000,
-               noiseQ: 0.8, cutoff: 16000, cutoffEnd: 16000, filterTime: 200, resonance: 0.7, attack: 1, decay: 200,
-               length: 0.5, drive: 0, click: 0, bursts: 1 };
-
-export const PRESETS = {
-  kick: { ...BASE, pitch: 48, drop: 4, dropTime: 45, decay: 220, length: 0.55, drive: 0.25, click: 0.3, noise: 0.04, noiseCutoff: 5000 },
-  snare: { ...BASE, wave: "triangle", pitch: 190, drop: 1.5, dropTime: 30, body: 0.6, noise: 0.85, noiseCutoff: 2200, noiseQ: 0.7, decay: 160, length: 0.35, click: 0.2 },
-  hat: { ...BASE, body: 0, noise: 1, noiseType: "highpass", noiseCutoff: 7500, noiseQ: 0.7, decay: 45, length: 0.15 },
-  openhat: { ...BASE, body: 0, noise: 1, noiseType: "highpass", noiseCutoff: 6500, noiseQ: 0.7, decay: 320, length: 0.7 },
-  clap: { ...BASE, body: 0, noise: 1, noiseType: "bandpass", noiseCutoff: 1300, noiseQ: 1.3, decay: 140, length: 0.4, bursts: 3 },
-  tom: { ...BASE, pitch: 110, drop: 1.8, dropTime: 70, decay: 300, length: 0.6, click: 0.15, noise: 0.06 },
-  bass: { ...BASE, wave: "sawtooth", pitch: 55, cutoff: 1400, cutoffEnd: 180, filterTime: 260, resonance: 4, attack: 2, decay: 650, length: 0.9, drive: 0.3 },
-  pluck: { ...BASE, wave: "triangle", pitch: 220, cutoff: 4000, cutoffEnd: 350, filterTime: 280, resonance: 2, decay: 380, length: 0.7 },
-  zap: { ...BASE, pitch: 60, drop: 12, dropTime: 160, decay: 220, length: 0.35, drive: 0.15 },
-};
-
-function noteName(hz) {
-  const midi = Math.round(69 + 12 * Math.log2(hz / 440));
-  return `${NOTE_NAMES[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
-}
-
-function toSlider(spec, value) {
-  const [, , min, max, scale] = spec;
-  return scale === "log" ? Math.log(value / min) / Math.log(max / min) : (value - min) / (max - min);
-}
-
-function fromSlider(spec, position) {
-  const [, , min, max, scale, , decimals] = spec;
-  const value = scale === "log" ? min * (max / min) ** position : min + (max - min) * position;
-  return Number(value.toFixed(decimals));
-}
-
-function element(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-
-/** Render a set of parameters to a mono AudioBuffer at the device's rate, peak-normalised to −1 dBFS. */
-export async function renderSound(p) {
-  const frames = Math.max(1, Math.round(p.length * DEVICE_RATE));
-  const context = new OfflineAudioContext(1, frames, DEVICE_RATE);
-  const end = p.length;
-  const attack = Math.max(0.0005, p.attack / 1000);
-  const decay = p.decay / 1000;
-
-  const amp = context.createGain();
-  amp.gain.setValueAtTime(0, 0);
-  amp.gain.linearRampToValueAtTime(1, attack);
-  amp.gain.setTargetAtTime(0, attack, decay / 3);
-
-  const tone = context.createBiquadFilter();
-  tone.type = "lowpass";
-  tone.Q.value = p.resonance;
-  tone.frequency.setValueAtTime(Math.min(p.cutoff, DEVICE_RATE / 2 - 100), 0);
-  tone.frequency.exponentialRampToValueAtTime(Math.min(p.cutoffEnd, DEVICE_RATE / 2 - 100), p.filterTime / 1000);
-
-  const shaper = context.createWaveShaper();
-  const curve = new Float32Array(1024);
-  const k = 1 + p.drive * 8; // gentle by default; full drive is a hard, square-ish clip
-  for (let i = 0; i < curve.length; i++) {
-    const x = (i / (curve.length - 1)) * 2 - 1;
-    curve[i] = Math.tanh(k * x) / Math.tanh(k);
-  }
-  shaper.curve = curve;
-  tone.connect(shaper).connect(amp).connect(context.destination);
-
-  if (p.body > 0) {
-    const oscillator = context.createOscillator();
-    oscillator.type = p.wave;
-    oscillator.frequency.setValueAtTime(p.pitch * p.drop, 0);
-    oscillator.frequency.exponentialRampToValueAtTime(p.pitch, Math.max(0.001, p.dropTime / 1000));
-    const level = context.createGain();
-    level.gain.value = p.body;
-    oscillator.connect(level).connect(tone);
-    oscillator.start(0);
-    oscillator.stop(end);
-  }
-
-  const noiseBuffer = context.createBuffer(1, frames, DEVICE_RATE);
-  const data = noiseBuffer.getChannelData(0);
-  for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1;
-
-  if (p.noise > 0) {
-    const source = context.createBufferSource();
-    source.buffer = noiseBuffer;
-    const filter = context.createBiquadFilter();
-    filter.type = p.noiseType;
-    filter.frequency.value = Math.min(p.noiseCutoff, DEVICE_RATE / 2 - 100);
-    filter.Q.value = p.noiseQ;
-    const level = context.createGain();
-    // Claps: several short bursts before the tail.
-    const bursts = Math.max(1, Math.round(p.bursts));
-    level.gain.setValueAtTime(0, 0);
-    for (let b = 0; b < bursts - 1; b++) {
-      level.gain.setValueAtTime(p.noise, b * 0.011);
-      level.gain.setTargetAtTime(0.05 * p.noise, b * 0.011 + 0.002, 0.003);
-    }
-    level.gain.setValueAtTime(p.noise, (bursts - 1) * 0.011);
-    source.connect(filter).connect(level).connect(tone);
-    source.start(0);
-  }
-
-  if (p.click > 0) {
-    const source = context.createBufferSource();
-    source.buffer = noiseBuffer;
-    const filter = context.createBiquadFilter();
-    filter.type = "highpass";
-    filter.frequency.value = 3000;
-    const level = context.createGain();
-    level.gain.setValueAtTime(p.click, 0);
-    level.gain.exponentialRampToValueAtTime(0.0001, 0.006);
-    source.connect(filter).connect(level).connect(amp);
-    source.start(0);
-    source.stop(0.01);
-  }
-
-  const buffer = await context.startRendering();
-  normalise(buffer);
-  return buffer;
-}
-
-function normalise(buffer, target = 10 ** (-1 / 20)) {
-  let peak = 0;
-  for (let c = 0; c < buffer.numberOfChannels; c++) {
-    for (const value of buffer.getChannelData(c)) peak = Math.max(peak, Math.abs(value));
-  }
-  if (peak < 1e-6) return;
-  const gain = target / peak;
-  for (let c = 0; c < buffer.numberOfChannels; c++) {
-    const channel = buffer.getChannelData(c);
-    for (let i = 0; i < channel.length; i++) channel[i] *= gain;
-  }
-}
-
-/** Decode any audio file the browser understands and convert it to the device's rate (mono or stereo). */
-export async function convertFile(file, keepStereo) {
-  const decoded = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(await file.arrayBuffer());
-  const channels = keepStereo && decoded.numberOfChannels > 1 ? 2 : 1;
-  const frames = Math.ceil(decoded.duration * DEVICE_RATE);
-  const context = new OfflineAudioContext(channels, frames, DEVICE_RATE);
-  const source = context.createBufferSource();
-  source.buffer = decoded;
-  source.connect(context.destination);
-  source.start(0);
-  const buffer = await context.startRendering();
-  normalise(buffer);
-  return buffer;
-}
-
-/** AudioBuffer -> 16-bit little-endian interleaved PCM, base64-encoded for the upload request. */
-export function toPcmBase64(buffer) {
-  const channels = buffer.numberOfChannels;
-  const view = new DataView(new ArrayBuffer(buffer.length * channels * 2));
-  const data = Array.from({ length: channels }, (_, c) => buffer.getChannelData(c));
-  for (let i = 0; i < buffer.length; i++) {
-    for (let c = 0; c < channels; c++) {
-      const value = Math.max(-1, Math.min(1, data[c][i]));
-      view.setInt16((i * channels + c) * 2, Math.round(value * 32767), true);
-    }
-  }
-  const bytes = new Uint8Array(view.buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(binary);
+function formatDb(value) {
+  return `${value.toFixed(1)}`;
 }
 
 export class SoundDesigner {
-  constructor(elements, { toast, onUploaded, suggestSlot }) {
-    this.elements = elements;
+  constructor({ toast, onUploaded, getPlayables }) {
     this.toast = toast;
     this.onUploaded = onUploaded;
-    this.suggestSlot = suggestSlot;
-    this.params = { ...PRESETS.kick };
-    this.preset = "kick";
+    this.output = new PreviewOutput();
+    this.schema = null;
+    this.design = null;
+    this.preview = null;        // the last server render: { design, wav, analysis, device, similar }
     this.buffer = null;
-    this.source = "design";
-    this.sliders = {};
-    this._build();
-    this._renderSoon();
-  }
-
-  _build() {
-    const { presets, controls, preview, upload, file, randomise } = this.elements;
-    for (const name of Object.keys(PRESETS)) {
-      const button = element("button", "brush", name);
-      button.type = "button";
-      button.addEventListener("click", () => this.usePreset(name));
-      button.dataset.preset = name;
-      presets.append(button);
-    }
-    let group = null;
-    for (const spec of PARAMETERS) {
-      if (spec[0] === "group") {
-        group = element("fieldset", "param-group");
-        group.append(element("legend", "", spec[1]));
-        if (spec[1] === "body") group.append(this._choice("wave"));
-        if (spec[1] === "noise") group.append(this._choice("noiseType"));
-        controls.append(group);
-        continue;
-      }
-      const [name, label] = spec;
-      const row = element("label", "param");
-      const input = element("input");
-      input.type = "range";
-      input.min = 0;
-      input.max = 1000;
-      const readout = element("span", "param-value num");
-      input.addEventListener("input", () => {
-        this.params[name] = fromSlider(spec, input.value / 1000);
-        this._showValue(spec, readout);
-        this.source = "design";
-        this._renderSoon();
-      });
-      row.append(element("span", "param-name", label), input, readout);
-      this.sliders[name] = { input, readout, spec };
-      group.append(row);
-    }
-    preview.addEventListener("click", () => this.preview());
-    upload.addEventListener("click", () => this.upload());
-    randomise.addEventListener("click", () => this.randomise());
-    file.addEventListener("change", () => file.files[0] && this.loadFile(file.files[0]));
-    new ResizeObserver(() => this._draw()).observe(this.elements.wave);
-    this._sync();
-  }
-
-  _choice(name) {
-    const select = element("select", "param-choice");
-    for (const option of CHOICES[name]) {
-      const node = element("option", "", option);
-      node.value = option;
-      select.append(node);
-    }
-    select.addEventListener("change", () => {
-      this.params[name] = select.value;
-      this.source = "design";
-      this._renderSoon();
+    this.variations = [];
+    this.library = { designs: [], sources: [] };
+    this.renderId = 0;
+    this.controls = new DesignControls($("designer-controls"), {
+      onChange: () => this.renderSoon(),
+      onAudition: ({ layer }) => this.solo(layer),
     });
-    this.sliders[name] = { select };
-    return select;
+    this.sampler = new Sampler(this, { getPlayables });
+    this.kit = new KitBuilder(this);
+    this._wire();
   }
 
-  _showValue(spec, readout) {
-    const [name, , , , , unit, decimals] = spec;
-    const value = this.params[name];
-    readout.textContent = `${value.toFixed(decimals)}${unit ? ` ${unit}` : ""}${name === "pitch" ? ` · ${noteName(value)}` : ""}`;
+  async start() {
+    this.schema = await command("design_schema");
+    await this.refreshLibrary();
+    this.kit.showStyles(this.schema.kit_styles);
+    await this.open(await command("design_preset", { name: "kick" }), { name: "kick" });
+    this.fillOutputs();
   }
 
-  _sync() {
-    for (const [name, control] of Object.entries(this.sliders)) {
-      if (control.select) control.select.value = this.params[name];
-      else {
-        control.input.value = Math.round(toSlider(control.spec, this.params[name]) * 1000);
-        this._showValue(control.spec, control.readout);
+  // -- wiring ---------------------------------------------------------------------------
+
+  _wire() {
+    for (const tab of document.querySelectorAll("[data-designer-tab]")) {
+      tab.addEventListener("click", () => this.showTab(tab.dataset.designerTab));
+    }
+    $("designer-start").addEventListener("change", (event) => this.startFrom(event.target.value));
+    $("designer-save").addEventListener("click", () => this.save());
+    $("designer-delete").addEventListener("click", () => this.deleteSaved());
+    $("designer-name").addEventListener("input", () => {
+      if (this.design) this.design.name = $("designer-name").value.trim() || "new sound";
+    });
+    $("designer-play").addEventListener("click", () => this.play());
+    $("designer-stop").addEventListener("click", () => this.output.stop());
+    $("designer-hold").addEventListener("click", () => {
+      const hold = $("designer-hold").getAttribute("aria-pressed") !== "true";
+      $("designer-hold").setAttribute("aria-pressed", String(hold));
+      if (!hold) this.output.stop();
+      else this.play();
+    });
+    $("designer-output").addEventListener("change", (event) => this.output.useOutput(event.target.value)
+      .catch((error) => this.toast(`Couldn't use that output: ${error.message}`, true)));
+    $("designer-upload").addEventListener("click", () => this.upload());
+    $("vary-amount").addEventListener("input", () => {
+      $("vary-amount-value").textContent = (Number($("vary-amount").value) / 100).toFixed(2);
+    });
+    $("vary-btn").addEventListener("click", () => this.vary());
+    $("morph-amount").addEventListener("input", () => {
+      $("morph-value").textContent = (Number($("morph-amount").value) / 100).toFixed(2);
+    });
+    $("morph-btn").addEventListener("click", () => this.morph());
+    const locks = $("vary-locks");
+    locks.append(element("span", "param-name", "keep"));
+    for (const [path, label] of LOCK_CHOICES) {
+      const box = element("label", "lock");
+      const input = element("input");
+      input.type = "checkbox";
+      input.value = path;
+      box.append(input, ` ${label}`);
+      locks.append(box);
+    }
+    new ResizeObserver(() => this.draw()).observe($("designer-wave"));
+    document.addEventListener("keydown", (event) => {
+      const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || "");
+      if (event.code === "Space" && !typing && this.visible("design")) {
+        event.preventDefault();
+        this.play();
       }
+    });
+  }
+
+  visible(tab) {
+    return !$(`designer-page-${tab}`).hidden && $("designer-page-design").closest("section").getBoundingClientRect().top
+      < window.innerHeight;
+  }
+
+  showTab(name) {
+    for (const tab of document.querySelectorAll("[data-designer-tab]")) {
+      tab.classList.toggle("active", tab.dataset.designerTab === name);
     }
-    for (const button of this.elements.presets.querySelectorAll("button")) {
-      button.classList.toggle("active", button.dataset.preset === this.preset);
+    for (const page of ["design", "sample", "kit"]) $(`designer-page-${page}`).hidden = page !== name;
+    if (name === "sample") this.sampler.show();
+    if (name === "kit") this.kit.show();
+    if (name === "design") this.draw();
+  }
+
+  // -- the library and starting points ---------------------------------------------------------
+
+  async refreshLibrary() {
+    this.library = await command("design_library");
+    this.controls.sources = this.library.sources;
+    this.fillStartMenu();
+    this.fillMorphTargets();
+    this.sampler.showSources(this.library.sources);
+  }
+
+  fillStartMenu() {
+    const select = $("designer-start");
+    select.replaceChildren(new Option("start from…", ""));
+    const blank = element("optgroup");
+    blank.label = "new";
+    blank.append(new Option("empty design", "new:"));
+    select.append(blank);
+    for (const [category, names] of Object.entries(this.schema.presets)) {
+      const group = element("optgroup");
+      group.label = `presets · ${category}`;
+      for (const name of names) group.append(new Option(name, `preset:${name}`));
+      select.append(group);
     }
-    if (!this.elements.name.value || this.elements.name.dataset.auto === "true") {
-      this.elements.name.value = `koii ${this.preset}`;
-      this.elements.name.dataset.auto = "true";
+    if (this.library.designs.length) {
+      const group = element("optgroup");
+      group.label = "saved";
+      for (const saved of this.library.designs) {
+        const slots = saved.slots.length ? ` · slot ${saved.slots.join(", ")}` : "";
+        group.append(new Option(`${saved.name}${slots}`, `saved:${saved.name}`));
+      }
+      select.append(group);
     }
   }
 
-  usePreset(name) {
-    this.preset = name;
-    this.params = { ...PRESETS[name] };
-    this.source = "design";
-    this._sync();
-    this._renderSoon();
-  }
-
-  randomise() {
-    // Nudge every continuous parameter of the current preset by up to ±25% of its range.
-    const base = PRESETS[this.preset];
-    for (const spec of PARAMETERS) {
-      if (spec[0] === "group" || spec[0] === "bursts") continue;
-      const position = toSlider(spec, base[spec[0]]) + (Math.random() - 0.5) * 0.5;
-      this.params[spec[0]] = fromSlider(spec, Math.min(1, Math.max(0, position)));
+  fillMorphTargets() {
+    const select = $("morph-target");
+    const current = select.value;
+    select.replaceChildren();
+    for (const [category, names] of Object.entries(this.schema.presets)) {
+      const group = element("optgroup");
+      group.label = category;
+      for (const name of names) group.append(new Option(name, `preset:${name}`));
+      select.append(group);
     }
-    this.source = "design";
-    this._sync();
-    this._renderSoon();
+    if (this.library.designs.length) {
+      const group = element("optgroup");
+      group.label = "saved";
+      for (const saved of this.library.designs) group.append(new Option(saved.name, `saved:${saved.name}`));
+      select.append(group);
+    }
+    if (current) select.value = current;
   }
 
-  async loadFile(file) {
+  async startFrom(value) {
+    $("designer-start").value = "";
+    if (!value) return;
+    const [kind, name] = [value.slice(0, value.indexOf(":")), value.slice(value.indexOf(":") + 1)];
     try {
-      this.buffer = await convertFile(file, this.elements.stereo.checked);
-      this.source = "file";
-      this.elements.name.value = file.name.replace(/\.[^.]+$/, "").slice(0, 20);
-      this.elements.name.dataset.auto = "false";
-      this._draw();
+      const design = await this.resolve(kind, name);
+      await this.open(design, { saved: kind === "saved" ? name : null });
     } catch (error) {
-      this.toast(`Couldn't read that file: ${error.message}`, true);
+      this.toast(error.message, true);
     }
   }
 
-  _renderSoon() {
+  async resolve(kind, name) {
+    if (kind === "preset") return command("design_preset", { name });
+    if (kind === "saved") return command("design_get", { name });
+    return command("design_new");
+  }
+
+  /** Make a design the current one (from a preset, the library, Claude or the sampler). */
+  async open(design, { saved = null } = {}) {
+    this.design = structuredClone(design);
+    this.saved = saved;
+    $("designer-name").value = this.design.name;
+    $("designer-delete").hidden = !saved;
+    this.controls.show(this.schema, this.design);
+    this.showTab("design");
+    await this.render();
+  }
+
+  async save() {
+    if (!this.design) return;
+    try {
+      const name = await command("design_save", { design: this.design, name: $("designer-name").value.trim() || undefined });
+      this.saved = name;
+      $("designer-delete").hidden = false;
+      await this.refreshLibrary();
+      this.toast(`Saved “${name}”.`);
+    } catch (error) {
+      this.toast(error.message, true);
+    }
+  }
+
+  async deleteSaved() {
+    if (!this.saved) return;
+    try {
+      await command("design_delete", { name: this.saved });
+      this.toast(`Removed “${this.saved}” from the library.`);
+      this.saved = null;
+      $("designer-delete").hidden = true;
+      await this.refreshLibrary();
+    } catch (error) {
+      this.toast(error.message, true);
+    }
+  }
+
+  // -- rendering ---------------------------------------------------------------------------
+
+  renderSoon() {
     clearTimeout(this.renderTimer);
-    this.renderTimer = setTimeout(async () => {
-      if (this.source !== "design") return;
-      this.buffer = await renderSound(this.params);
-      this._draw();
-    }, 60);
+    this.renderTimer = setTimeout(() => this.render(), RENDER_DELAY_MS);
   }
 
-  _draw() {
-    const canvas = this.elements.wave;
-    const ratio = window.devicePixelRatio || 1;
-    const { width, height } = canvas.getBoundingClientRect();
-    if (!width) return;
-    canvas.width = Math.round(width * ratio);
-    canvas.height = Math.round(height * ratio);
-    const context = canvas.getContext("2d");
-    context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    context.fillStyle = "#0e0d0f";
-    context.fillRect(0, 0, width, height);
-    context.fillStyle = "rgba(240, 233, 216, 0.08)";
-    context.fillRect(0, height / 2, width, 1);
-    const buffer = this.buffer;
-    if (!buffer) return;
-    const data = buffer.getChannelData(0);
-    const perPixel = Math.max(1, Math.floor(data.length / width));
-    context.fillStyle = "#ff5a1f";
-    for (let x = 0; x < width; x++) {
-      let low = 1;
-      let high = -1;
-      for (let i = x * perPixel; i < Math.min(data.length, (x + 1) * perPixel); i++) {
-        if (data[i] < low) low = data[i];
-        if (data[i] > high) high = data[i];
+  async render() {
+    if (!this.design) return;
+    const id = ++this.renderId;
+    $("designer-status").textContent = "rendering…";
+    try {
+      const preview = await command("design_preview", { design: this.design });
+      if (id !== this.renderId) return;   // a newer edit has already been sent
+      this.preview = preview;
+      this.buffer = await this.output.decode(preview.wav);
+      $("designer-status").textContent = "";
+      this.draw();
+      this.showFacts();
+      // The device's fingerprints are still being worked out; ask again when they're likely ready.
+      if (preview.fingerprints.building) {
+        clearTimeout(this.similarTimer);
+        this.similarTimer = setTimeout(() => this.render(), 3000);
       }
-      if (high < low) continue;
-      const top = height / 2 - high * (height / 2 - 4);
-      context.fillRect(x, top, 1, Math.max(1, height / 2 - low * (height / 2 - 4) - top));
+      if ($("designer-hold").getAttribute("aria-pressed") === "true") this.play();
+    } catch (error) {
+      if (id !== this.renderId) return;
+      $("designer-status").textContent = "";
+      this.toast(error.message, true);
     }
-    const kb = (buffer.length * buffer.numberOfChannels * 2) / 1024;
-    this.elements.readout.textContent =
-      `${buffer.duration.toFixed(3)} s · ${buffer.numberOfChannels === 2 ? "stereo" : "mono"} · ${DEVICE_RATE} Hz · ${kb.toFixed(1)} KB`;
   }
 
-  preview() {
-    if (!this.buffer) return;
-    this.previewContext ||= new AudioContext();
-    const source = this.previewContext.createBufferSource();
-    source.buffer = this.buffer;
-    source.connect(this.previewContext.destination);
-    this.previewContext.resume();
-    source.start();
+  draw() {
+    if (!this.preview) return;
+    const settings = this.preview.device.settings;
+    const loop = settings["sound.loopstart"] >= 0
+      ? { start: settings["sound.loopstart"], end: settings["sound.loopend"] } : null;
+    drawWave($("designer-wave"), this.buffer, { loop, playhead: this.output.position() });
+    const analysis = this.preview.analysis;
+    drawSpectrum($("designer-spectrum"), analysis.spectrum, analysis.spectrum_range);
+    drawSpectrogram($("designer-spectrogram"), analysis.spectrogram, analysis.spectrogram_range, analysis.seconds);
   }
+
+  showFacts() {
+    const { analysis, device, similar, fingerprints } = this.preview;
+    const pitch = analysis.pitch;
+    const pitched = pitch.frequency && pitch.confidence > 0.7;
+    const settings = device.settings;
+    const facts = [
+      ["length", `${analysis.seconds.toFixed(3)} s`],
+      ["pitch", pitched ? `${pitch.name} ${pitch.cents >= 0 ? "+" : ""}${Math.round(pitch.cents)}¢` : "unpitched"],
+      ["loudness", `${formatDb(analysis.lufs)} LUFS`],
+      ["peak", `${formatDb(analysis.peak_db)} dB`],
+      ["brightness", `${Math.round(analysis.brightness)} Hz`],
+      ["attack", `${Math.round(analysis.attack * 1000)} ms`],
+      ["decay", `${analysis.decay.toFixed(2)} s`],
+      ["mode", settings["sound.playmode"]],
+      ["size", `${(device.bytes / 1024).toFixed(0)} KB`],
+      ["upload", `≈ ${Math.max(1, Math.round(device.upload_seconds))} s`],
+      ["channels", analysis.channels === 2 ? "stereo" : "mono"],
+      ["root", settings["sound.rootnote"]],
+    ];
+    $("designer-facts").replaceChildren(...facts.flatMap(([name, value]) =>
+      [element("dt", "", name), element("dd", "num", String(value))]));
+    $("designer-notes").replaceChildren(...device.notes.map((note) => element("li", "", note)));
+    const similarText = similar.length
+      ? `closest on the device: ${similar.map((s) => `${s.slot} ${s.name}`).join(" · ")}`
+      : fingerprints.building ? "comparing with the device's sounds…" : fingerprints.ready ? "" : "back up the device to compare with its sounds";
+    $("designer-similar").textContent = similarText;
+  }
+
+  // -- playback ----------------------------------------------------------------------------
+
+  play() {
+    if (!this.buffer) return;
+    const hold = $("designer-hold").getAttribute("aria-pressed") === "true";
+    const settings = this.preview.device.settings;
+    const loop = hold && settings["sound.loopstart"] >= 0
+      ? { start: settings["sound.loopstart"], end: settings["sound.loopend"] } : null;
+    this.output.play(this.buffer, { loop });
+    this.animate();
+  }
+
+  animate() {
+    cancelAnimationFrame(this.frame);
+    const step = () => {
+      this.draw();
+      if (this.output.playing) this.frame = requestAnimationFrame(step);
+    };
+    this.frame = requestAnimationFrame(step);
+  }
+
+  async solo(layerIndex) {
+    const single = { ...structuredClone(this.design), layers: [structuredClone(this.design.layers[layerIndex])] };
+    single.instrument = { ...single.instrument, loop: "off" };
+    try {
+      const preview = await command("design_preview", { design: single, similar: false });
+      this.output.play(await this.output.decode(preview.wav));
+    } catch (error) {
+      this.toast(error.message, true);
+    }
+  }
+
+  async fillOutputs() {
+    const select = $("designer-output");
+    const outputs = await this.output.outputs();
+    select.replaceChildren(new Option("this computer", ""));
+    for (const output of outputs) {
+      if (!output.id) continue;
+      select.append(new Option(output.isDevice ? `EP-133 · ${output.label}` : output.label, output.id));
+    }
+    select.disabled = !this.output.canChooseOutput;
+    select.title = this.output.canChooseOutput
+      ? "Play previews through the EP-133's own output to hear them as they'll sound on the device"
+      : "This browser can't choose an output (Chrome and Edge can)";
+    select.value = this.output.sinkId;
+    if (select.value !== this.output.sinkId) select.value = "";
+  }
+
+  // -- exploring ---------------------------------------------------------------------------
+
+  locks() {
+    return [...document.querySelectorAll("#vary-locks input:checked")].map((input) => input.value);
+  }
+
+  async vary() {
+    if (!this.design) return;
+    const button = $("vary-btn");
+    button.disabled = true;
+    try {
+      this.variations = await command("design_vary", {
+        design: this.design, amount: Number($("vary-amount").value) / 100, locks: this.locks(), count: 6,
+      });
+      this.showVariations();
+    } catch (error) {
+      this.toast(error.message, true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  showVariations() {
+    const results = $("vary-results");
+    results.replaceChildren();
+    this.variations.forEach((variation, index) => {
+      const tile = element("div", "vary-tile");
+      const play = element("button", "btn small", `▶ ${index + 1}`);
+      play.type = "button";
+      play.addEventListener("click", async () => {
+        try {
+          const preview = await command("design_preview", { design: variation, similar: false });
+          this.output.play(await this.output.decode(preview.wav));
+        } catch (error) {
+          this.toast(error.message, true);
+        }
+      });
+      const use = element("button", "btn small ghost", "use");
+      use.type = "button";
+      use.title = "Make this the current sound (the original stays in “morph to”)";
+      use.addEventListener("click", () => this.open(variation));
+      tile.append(play, use);
+      results.append(tile);
+    });
+  }
+
+  async morph() {
+    const value = $("morph-target").value;
+    if (!value || !this.design) return;
+    const [kind, name] = [value.slice(0, value.indexOf(":")), value.slice(value.indexOf(":") + 1)];
+    try {
+      const target = await this.resolve(kind, name);
+      const morphed = await command("design_morph", { a: this.design, b: target, t: Number($("morph-amount").value) / 100 });
+      await this.open(morphed);
+    } catch (error) {
+      this.toast(error.message, true);
+    }
+  }
+
+  // -- uploading ---------------------------------------------------------------------------
 
   async upload() {
-    if (!this.buffer) return;
-    const slotInput = this.elements.slot;
-    let slot = Number(slotInput.value);
-    if (!slot) {
-      slot = await this.suggestSlot();
-      slotInput.value = slot;
-    }
-    const name = this.elements.name.value.trim() || `koii ${this.preset}`;
-    if (!confirm(`Upload “${name}” (${this.buffer.duration.toFixed(2)} s) to slot ${slot} on the EP-133?\n\n` +
-                 "koii only writes to empty slots (or ones it uploaded itself) and checks the result against the device's checksum.")) return;
-    const button = this.elements.upload;
+    if (!this.design) return;
+    const slotInput = $("designer-slot");
+    const button = $("designer-upload");
+    const where = Number(slotInput.value) ? `slot ${Number(slotInput.value)}` : "the next free slot";
+    if (!pressedTwice(button, `upload “${this.design.name}” to ${where}?`)) return;
     button.disabled = true;
     button.textContent = "uploading…";
     try {
-      const result = await command("upload_sample", {
-        slot, name, channels: this.buffer.numberOfChannels, pcm: toPcmBase64(this.buffer),
-      });
+      const result = await command("design_upload", { design: this.design, slot: Number(slotInput.value) || undefined });
       this.toast(result.message);
       slotInput.value = "";
+      await this.refreshLibrary();
       this.onUploaded(result);
     } catch (error) {
       this.toast(error.message, true);
     } finally {
       button.disabled = false;
       button.textContent = "⤒ upload to device";
+    }
+  }
+
+  // -- events from the server ------------------------------------------------------------------
+
+  onEvent(event) {
+    if (event.type === "design" && event.design) {
+      this.open(event.design).then(() => this.toast(`Claude opened “${event.design.name}” in the designer.`));
+    } else if (event.type === "designs") {
+      this.refreshLibrary();
+    } else if (event.type === "kit") {
+      this.kit.onEvent(event);
     }
   }
 }

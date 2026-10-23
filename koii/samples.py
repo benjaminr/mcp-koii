@@ -132,8 +132,12 @@ class DeviceLibrary:
                 return slot
         raise UploadRefused("there are no empty slots on the device")
 
-    def upload(self, slot: int, pcm: bytes, name: str, channels: int = 1) -> Dict[str, Any]:
-        """Upload 16-bit little-endian PCM at 46,875 Hz, following the rules in the module docstring."""
+    def upload(self, slot: int, pcm: bytes, name: str, channels: int = 1,
+               settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Upload 16-bit little-endian PCM at 46,875 Hz, following the rules in the module docstring.
+        settings is extra sample metadata in the device's own keys (see koii.synth.instrument).
+        """
         if latest_backup(self.backups) is None:
             raise UploadRefused("take a backup first (backup_device), so nothing can be lost")
         if self.busy:
@@ -153,7 +157,7 @@ class DeviceLibrary:
         def progress(done: int, total: int) -> None:
             self.events.publish("upload", stage="writing", slot=slot, done=done, total=total)
 
-        sound = self.client.upload_sound(slot, pcm, name, channels, progress)
+        sound = self.client.upload_sound(slot, pcm, name, channels, progress, settings)
         self._record_upload(sound)
         self._sounds = None
         self.events.publish("upload", stage="done", slot=slot, name=sound.name)
@@ -174,6 +178,16 @@ class DeviceLibrary:
         except Exception as error:  # wave raises a few different types for unreadable files
             raise UploadRefused(f"couldn't read {file.name} as a PCM WAV file ({error})") from error
         return self.upload(slot or self.suggest_slot(), pcm, name or file.stem, channels)
+
+    def change_settings(self, slot: int, settings: Dict[str, Any]) -> Dict[str, Any]:
+        """Change the sample settings (root, loop, play mode …) of a sound koii uploaded."""
+        sounds = self.sounds(refresh=True)
+        if not self._ours(slot, sounds):
+            raise UploadRefused(f"slot {slot} isn't a sound koii uploaded; koii only changes its own uploads")
+        stored = self.client.set_sound_settings(slot, settings)
+        self._sounds = None
+        self.events.publish("samples", stage="changed")
+        return stored
 
     def delete_upload(self, slot: int) -> str:
         """Delete a sound, but only one koii uploaded and that hasn't changed since."""

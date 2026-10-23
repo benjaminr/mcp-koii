@@ -44,7 +44,7 @@ COMMAND_HEADER = "X-Koii"
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 _CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
                   ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml"}
-_MAX_BODY_BYTES = 8_000_000  # room for a 20 s stereo upload, base64-encoded
+_MAX_BODY_BYTES = 24_000_000  # room for a minute of 48 kHz stereo recording, base64-encoded
 
 
 class Visualiser:
@@ -120,6 +120,7 @@ def _commands(studio: Studio) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
             raise _BadRequest(f"'{key}' is required")
         return body[key]
 
+    designer = studio.designer
     return {
         "check": lambda b: studio.check_pattern(required(b, "text")),
         "arrangement": lambda b: studio.arrangement_info(required(b, "arrangement"), b.get("bpm")),
@@ -141,8 +142,57 @@ def _commands(studio: Studio) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
         "suggest_slot": lambda b: studio.samples.suggest_slot(),
         "upload_sample": lambda b: studio.samples.upload(int(required(b, "slot")), _pcm(required(b, "pcm")),
                                                          str(b.get("name") or "koii sound"), int(b.get("channels", 1))),
-        "delete_upload": lambda b: studio.samples.delete_upload(int(required(b, "slot"))),
+        "delete_upload": lambda b: designer.delete_upload(int(required(b, "slot"))),
         "disconnect": lambda b: studio.disconnect(),
+        **_designer_commands(studio, required),
+    }
+
+
+def _designer_commands(studio: Studio, required: Callable[[Dict[str, Any], str], Any]
+                       ) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
+    """The sound designer's commands (module 08 in the page)."""
+    designer = studio.designer
+
+    def optional_slot(body: Dict[str, Any], key: str = "slot") -> Optional[int]:
+        return int(body[key]) if body.get(key) not in (None, "") else None
+
+    return {
+        "design_schema": lambda b: designer.schema(),
+        "design_new": lambda b: designer.new(),
+        "design_preset": lambda b: designer.preset(required(b, "name")),
+        "design_preview": lambda b: designer.preview(required(b, "design"), bool(b.get("similar", True))),
+        "design_vary": lambda b: designer.vary(required(b, "design"), float(b.get("amount", 0.3)),
+                                               list(b.get("locks") or []), int(b.get("count", 1)), b.get("seed")),
+        "design_morph": lambda b: designer.morph(required(b, "a"), required(b, "b"), float(required(b, "t"))),
+        "design_save": lambda b: designer.save(required(b, "design"), b.get("name")),
+        "design_get": lambda b: designer.designs.get(required(b, "name")),
+        "design_delete": lambda b: designer.delete_design(required(b, "name")),
+        "design_library": lambda b: designer.library(),
+        "design_for_slot": lambda b: designer.design_for_slot(int(required(b, "slot"))),
+        "design_upload": lambda b: designer.upload(required(b, "design"), optional_slot(b)),
+        "sound_settings": lambda b: designer.change_settings(int(required(b, "slot")), required(b, "instrument")),
+        "kit": lambda b: designer.kit(required(b, "style")),
+        "kit_upload": lambda b: designer.start_kit_upload(str(b.get("style") or "custom"), optional_slot(b, "first_slot"),
+                                                          b.get("designs")),
+        "kit_status": lambda b: designer.kit_status(),
+        "source_add": lambda b: designer.add_source(required(b, "wav"), str(b.get("name") or "recording"),
+                                                    str(b.get("origin") or "file")),
+        "source_get": lambda b: designer.source_audio(required(b, "id"), b.get("edits") or []),
+        "source_save_edit": lambda b: designer.save_edit(required(b, "id"), b.get("edits") or [], b.get("name")),
+        "source_chop": lambda b: designer.chop(required(b, "id"), b.get("edits") or [], b.get("starts"),
+                                               b.get("slices"), float(b.get("sensitivity", 0.5))),
+        "source_rename": lambda b: designer.sources.rename(required(b, "id"), str(required(b, "name"))),
+        "source_delete": lambda b: designer.sources.delete(required(b, "id")),
+        "source_design": lambda b: designer.sample_design(required(b, "id"), str(b.get("name") or "resampled")),
+        "source_upload": lambda b: designer.upload_source(required(b, "id"), optional_slot(b),
+                                                          str(b.get("playmode") or "oneshot"), b.get("root", "auto"),
+                                                          str(b.get("loop") or "off")),
+        "slices_upload": lambda b: designer.upload_slices(list(required(b, "ids")), optional_slot(b, "first_slot")),
+        "bounce_plan": lambda b: studio.bounce_plan(required(b, "what")),
+        "bounce_save": lambda b: designer.save_bounce(required(b, "wav"), str(b.get("name") or "bounce"),
+                                                      float(required(b, "bars")), float(required(b, "bpm")),
+                                                      float(b.get("latency", 0))),
+        "bounce_upload": lambda b: designer.upload_bounce(required(b, "id"), optional_slot(b)),
     }
 
 
@@ -154,7 +204,10 @@ def _pcm(encoded: str) -> bytes:
 
 
 # Commands that change something are shown in the activity feed.
-_QUIET_COMMANDS = {"check", "arrangement", "samples", "backup_status", "suggest_slot"}
+_QUIET_COMMANDS = {"check", "arrangement", "samples", "backup_status", "suggest_slot",
+                   "design_schema", "design_new", "design_preset", "design_preview", "design_vary", "design_morph",
+                   "design_get", "design_library", "design_for_slot", "kit", "kit_status", "source_get",
+                   "source_design", "bounce_plan"}
 
 
 def full_state(studio: Studio) -> Dict[str, Any]:
@@ -345,7 +398,9 @@ def _make_handler(visualiser: Visualiser):
             if isinstance(result, dict) and "message" in result:
                 result = result["message"]
             summary = result.splitlines()[0] if isinstance(result, str) and result else None
-            shown = {key: value for key, value in body.items() if key != "pcm"}
+            # Audio and whole designs are too big for the activity feed.
+            shown = {key: value for key, value in body.items()
+                     if key not in ("pcm", "wav") and not isinstance(value, (dict, list))}
             studio.events.activity("browser", name, shown, result=summary, error=error)
 
     return Handler

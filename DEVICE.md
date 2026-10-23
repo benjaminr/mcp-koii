@@ -37,6 +37,11 @@ What this project relies on, where each fact comes from, and how sure we are.
 | Samples | The file system handles one session at a time; overlapping sessions freeze it until power-cycled | community | every session holds `/tmp/ep-device.lock` |
 | Samples | Uploading works: 433-byte pages, about 5 KB/s; the device computes the CRC-32 itself, so reading it back proves the sound arrived intact | hardware | uploads only to empty slots or koii's own, after a backup |
 | Samples | Sample names are at most 20 ASCII characters | community | names are trimmed |
+| Samples | Each sample's settings are JSON metadata: `sound.rootnote`, `sound.pitch` (fine tune, semitones), `sound.playmode` (`oneshot`, `key`, `legato`), `sound.loopstart`/`loopend` (frames; −1 for none), `envelope.attack`/`release` (0–255), `sound.amplitude` (0–100), `time.mode` (`off` or `bpm`), `sound.bpm`, `sound.bars` | hardware | designed sounds upload with these set |
+| Samples | Settings can be changed without touching the audio; the CRC stays the same | hardware | `change_sound_settings` |
+| Samples | Enums must be written as strings, and `sound.playmode` only together with `envelope.release` | hardware (community rule, confirmed) | enforced before sending |
+| Samples | Tempo sync accepts 60–180 BPM and 0.25–4 bars; anything else is refused with "range error", including the `sound.bpm` 0.0 that factory sounds carry | hardware | bounces fold into the range (50 BPM × 1 bar is sent as 100 BPM × 2 bars) |
+| Samples | Factory loops use `key` or `legato` mode with a loop over the sustained part and a shorter release (64–128) | hardware (backup) | auto loops switch a one-shot to `key` |
 | Samples | To put a sample on a pad: SOUND, choose the pad, then − / + until the screen shows its number | official (quick start) | shown after each upload |
 | Sequencer | Patterns per group, bars per pattern, projects: sources conflict | unknown | doesn't apply: koii sequences live over MIDI |
 

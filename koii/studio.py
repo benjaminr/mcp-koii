@@ -22,6 +22,7 @@ from koii.notation import (
 )
 from koii.player import Player
 from koii.samples import DeviceLibrary
+from koii.sound_design import SoundDesigner
 from koii.score import build_score, score_to_dict, score_to_musicxml
 from koii.sequence import Section, expand, layer, to_midi_file, total_seconds
 
@@ -66,6 +67,7 @@ class Studio:
         self._send_lock = threading.Lock()
         self.player = Player(self._send, notify=self.events.publish)
         self.samples = DeviceLibrary(self.events, self.library.home)
+        self.designer = SoundDesigner(self.events, self.library.home, self.samples)
 
     # -- connection ---------------------------------------------------------
 
@@ -353,6 +355,16 @@ class Studio:
         path = self._export_path(filename or name, ".musicxml")
         path.write_text(xml)
         return f"wrote {path} (opens in MuseScore, Dorico, Sibelius, Finale…)"
+
+    def bounce_plan(self, what: str) -> Dict[str, Any]:
+        """How long to record a pattern or song played once, and its tempo, for a bounce."""
+        sections, label, _ = self._sections(what, None)
+        tempos = {section.bpm for section in sections}
+        if len(tempos) != 1:
+            raise ValueError(f"'{label}' changes tempo, so it can't be one tempo-synced loop")
+        bpm = tempos.pop()
+        bars = sum(float(section.length_beats) for section in sections) / 4
+        return {"what": what, **self.designer.bounce_plan(bars, bpm)}
 
     def arrangement_info(self, arrangement: str, bpm: Optional[int] = None) -> Dict[str, Any]:
         sections = expand(arrangement, self.library.get_pattern, self.library.get_song, bpm)

@@ -24,6 +24,45 @@ const FREQUENCY_LABELS = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
 const DEVICE_LABEL = /ep-?133|k\.?o/i;
 const STORAGE_KEY = "koii.sound.input";
 
+/**
+ * Open an audio input, preferring the EP-133 (found by name once permission is granted).
+ * Returns { stream, inputs }. Needs a user gesture the first time.
+ */
+export async function openDeviceInput(deviceId) {
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error("this browser can't capture audio inputs");
+  const constraints = (id) => ({
+    audio: { deviceId: id ? { exact: id } : undefined, echoCancellation: false, noiseSuppression: false,
+             autoGainControl: false, channelCount: { ideal: 2 } },
+  });
+  let stream = await navigator.mediaDevices.getUserMedia(constraints(deviceId || rememberedInput()));
+  // Input names are only visible after permission is granted; switch to the EP-133 if it's elsewhere.
+  const inputs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
+  const current = stream.getAudioTracks()[0];
+  const device = inputs.find((d) => DEVICE_LABEL.test(d.label));
+  if (!deviceId && device && current.getSettings().deviceId !== device.deviceId) {
+    stream.getTracks().forEach((track) => track.stop());
+    stream = await navigator.mediaDevices.getUserMedia(constraints(device.deviceId));
+  }
+  rememberInput(stream.getAudioTracks()[0].getSettings().deviceId);
+  return { stream, inputs };
+}
+
+function rememberedInput() {
+  try {
+    return localStorage.getItem(STORAGE_KEY) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function rememberInput(deviceId) {
+  try {
+    if (deviceId) localStorage.setItem(STORAGE_KEY, deviceId);
+  } catch {
+    // Not kept; the EP-133 is found by name next time anyway.
+  }
+}
+
 const toDb = (amplitude) => (amplitude > 0 ? 20 * Math.log10(amplitude) : -Infinity);
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 
@@ -105,22 +144,8 @@ export class SoundScope {
 
   /** Listen to an audio input; picks the EP-133 when it can see one. Needs a user gesture. */
   async listenToInput(deviceId) {
-    if (!navigator.mediaDevices?.getUserMedia) throw new Error("this browser can't capture audio inputs");
-    const constraints = (id) => ({
-      audio: { deviceId: id ? { exact: id } : undefined, echoCancellation: false, noiseSuppression: false,
-               autoGainControl: false, channelCount: { ideal: 2 } },
-    });
-    let stream = await navigator.mediaDevices.getUserMedia(constraints(deviceId || this._rememberedInput()));
-    // Input names are only visible after permission is granted; switch to the EP-133 if it's elsewhere.
-    const inputs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
-    const current = stream.getAudioTracks()[0];
-    const device = inputs.find((d) => DEVICE_LABEL.test(d.label));
-    if (!deviceId && device && current.getSettings().deviceId !== device.deviceId) {
-      stream.getTracks().forEach((track) => track.stop());
-      stream = await navigator.mediaDevices.getUserMedia(constraints(device.deviceId));
-    }
+    const { stream, inputs } = await openDeviceInput(deviceId);
     const track = stream.getAudioTracks()[0];
-    this._remember(track.getSettings().deviceId);
     const context = new AudioContext({ latencyHint: "interactive" });
     const source = context.createMediaStreamSource(stream);
     const settings = track.getSettings();
@@ -182,22 +207,6 @@ export class SoundScope {
     const { label, channels, context } = this.graph;
     return { listening: true, label,
              text: `${label} · ${(context.sampleRate / 1000).toFixed(1)} kHz · ${channels === 1 ? "mono" : "stereo"}` };
-  }
-
-  _rememberedInput() {
-    try {
-      return localStorage.getItem(STORAGE_KEY) || undefined;
-    } catch {
-      return undefined;
-    }
-  }
-
-  _remember(deviceId) {
-    try {
-      if (deviceId) localStorage.setItem(STORAGE_KEY, deviceId);
-    } catch {
-      // Not kept; the EP-133 is found by name next time anyway.
-    }
   }
 
   /** Mark beats on the spectrogram: { bar, beat } while playing, or null. */

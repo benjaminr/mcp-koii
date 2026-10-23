@@ -501,10 +501,14 @@ class DeviceFiles:
     # -- writing (callers decide what's allowed; see koii.samples) ------------------------------
 
     def upload_sound(self, slot: int, pcm: bytes, name: str, channels: int = 1,
-                     progress: Optional[Callable[[int, int], None]] = None) -> Sound:
+                     progress: Optional[Callable[[int, int], None]] = None,
+                     settings: Optional[Dict] = None) -> Sound:
         """
         Write 16-bit little-endian PCM at 46,875 Hz into a slot, then check the device's own
         CRC-32 of what it stored against ours. Raises if they differ.
+
+        settings are extra sample metadata written with it (root note, loop, play mode …),
+        using the device's own keys; see koii.synth.instrument.
         """
         _check_slot(slot)
         if channels not in (1, 2) or len(pcm) % (2 * channels):
@@ -513,8 +517,8 @@ class DeviceFiles:
         with self.session("upload_sound") as session:
             session.preflight()
             session.write(slot, SOUNDS_NODE, pcm, f"{slot:03d}.pcm", SOUND_CREATE_FLAGS, progress)
-            session.set_metadata(slot, {"samplerate": DEVICE_SAMPLE_RATE, "channels": channels,
-                                        "format": "s16", "name": name})
+            session.set_metadata(slot, {**(settings or {}), "samplerate": DEVICE_SAMPLE_RATE,
+                                        "channels": channels, "format": "s16", "name": name})
             stored = session.metadata(slot)
             info = session.stat(slot)
         sound = Sound(slot=slot, name=stored.get("name") or name, bytes=info["size"], metadata=stored)
@@ -522,6 +526,14 @@ class DeviceFiles:
             raise DeviceFileError(f"slot {slot} didn't store the sound intact (size {info['size']} of {len(pcm)}, "
                                   f"checksum {'matches' if sound.crc == zlib.crc32(pcm) else 'differs'})")
         return sound
+
+    def set_sound_settings(self, slot: int, settings: Dict) -> Dict:
+        """Change a sound's sample metadata (not its audio). Returns the metadata as stored."""
+        _check_slot(slot)
+        with self.session("set_sound_settings") as session:
+            session.preflight()
+            session.set_metadata(slot, settings)
+            return session.metadata(slot)
 
     def delete_sound(self, slot: int) -> None:
         _check_slot(slot)

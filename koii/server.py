@@ -11,7 +11,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncIterator, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 from mcp.server.fastmcp import FastMCP
 
@@ -41,6 +41,11 @@ Workflow: check_pattern to validate without sound, play to listen (non-blocking;
 play switches at the end of the current loop), save_pattern / save_song to keep work (persists across restarts),
 export_midi for a .mid file. Errors name the line and column; fix them and retry.
 
+Sound design (full guide: the sound_design_guide prompt): designs are JSON (layers of engines → filters and
+envelopes → an effects chain → instrument settings for the device). Start from sound_presets / design_sound(preset=...),
+change values, listen in the visualiser (design_sound shows it there), vary_sound / morph_sounds to explore, then
+upload_design puts it on the device with root note, loop and play mode set. make_kit builds twelve sounds in a style.
+
 Visualiser: a live browser view of the device, patterns, sheet music and everything you do here. open_visualiser
 opens it. Without a device, connect(port="simulator") plays sound in the browser instead.
 """
@@ -67,18 +72,29 @@ async def lifespan(app: FastMCP) -> AsyncIterator[None]:
 server = FastMCP("koii", instructions=INSTRUCTIONS, lifespan=lifespan)
 
 
+def _brief(value: Any) -> Any:
+    """Arguments as the activity feed shows them: a design becomes its name."""
+    if isinstance(value, dict):
+        return f"design '{value['name']}'" if "name" in value else "{…}"
+    if isinstance(value, list) and len(value) > 6:
+        return f"[{len(value)} items]"
+    return value
+
+
 def tool(function):
     """Register an MCP tool and show each call in the visualiser's activity feed."""
 
     @functools.wraps(function)
     def recorded(*args, **kwargs):
+        shown = {key: _brief(value) for key, value in kwargs.items()}
         try:
             result = function(*args, **kwargs)
         except Exception as e:
-            studio.events.activity("claude", function.__name__, kwargs, error=str(e))
+            studio.events.activity("claude", function.__name__, shown, error=str(e))
             raise
-        summary = result.splitlines()[0] if isinstance(result, str) and result else None
-        studio.events.activity("claude", function.__name__, kwargs, result=summary)
+        text = result.get("message") or result.get("summary") if isinstance(result, dict) else result
+        summary = text.splitlines()[0] if isinstance(text, str) and text else None
+        studio.events.activity("claude", function.__name__, shown, result=summary)
         return result
 
     return server.tool()(recorded)
@@ -263,7 +279,7 @@ def upload_sample(path: str, slot: Optional[int] = None, name: Optional[str] = N
 @tool
 def delete_upload(slot: int) -> str:
     """Delete a sound koii uploaded (only its own uploads, and only if unchanged since)."""
-    return studio.samples.delete_upload(slot)
+    return studio.designer.delete_upload(slot)
 
 
 @tool
@@ -280,6 +296,150 @@ def backup_device() -> str:
 def cancel_backup() -> str:
     """Stop a running backup after the current sample (an incomplete backup isn't used later)."""
     return studio.samples.cancel_backup()
+
+
+# -- sound design -------------------------------------------------------------
+
+DesignInput = Union[Dict[str, Any], str]
+
+
+def _design(design: Optional[DesignInput], preset: Optional[str] = None) -> Dict[str, Any]:
+    """A design given as JSON, the name of a saved design, or a preset name."""
+    if preset:
+        return studio.designer.preset(preset)
+    if isinstance(design, str):
+        return studio.designer.designs.get(design)
+    if design is None:
+        raise ValueError("give a design (JSON), the name of a saved design, or preset=...")
+    return design
+
+
+@tool
+def sound_presets() -> dict:
+    """Preset names by category (drums, instruments, fx) and the kit styles, as starting points for design_sound."""
+    designer_schema = studio.designer.schema()
+    return {"presets": designer_schema["presets"], "kit_styles": designer_schema["kit_styles"]}
+
+
+@tool
+def sound_design_schema() -> dict:
+    """Every engine, effect and setting a design can use, with ranges, units and defaults."""
+    return studio.designer.schema()
+
+
+@tool
+def design_sound(design: Optional[DesignInput] = None, preset: Optional[str] = None, show: bool = True) -> dict:
+    """
+    Render a sound design and describe it: pitch, loudness, brightness, envelope, how it'll be set up
+    on the device (root, loop, play mode) and the closest sounds already on the device. Returns the
+    complete design (defaults filled in) to edit and pass back. show=True opens it in the visualiser's
+    designer so the user can hear it and tweak it.
+    """
+    chosen = _design(design, preset)
+    summary = studio.designer.describe(chosen)
+    checked = studio.designer.show(chosen) if show else studio.designer.preview(chosen, similar=False)["design"]
+    return {"summary": summary, "design": checked}
+
+
+@tool
+def vary_sound(design: DesignInput, amount: float = 0.3, locks: Optional[List[str]] = None, count: int = 4,
+               seed: Optional[int] = None) -> dict:
+    """
+    Variations of a design. amount: 0.1 subtle, 0.3 related, 0.7 wild. locks keep parts fixed, as dotted
+    paths with * wildcards: "layers.0", "layers.*.amp", "effects", "layers.1.params.wave". Length stays
+    fixed unless "!length" is in locks. The first variation opens in the visualiser.
+    """
+    variations = studio.designer.vary(_design(design), amount, locks or [], count, seed)
+    studio.designer.show(variations[0])
+    return {"variations": [{"summary": studio.designer.describe(v).splitlines()[0], "design": v} for v in variations]}
+
+
+@tool
+def morph_sounds(a: DesignInput, b: DesignInput, t: float = 0.5) -> dict:
+    """A design part way between two (t = 0 is a, 1 is b). Matching layers blend; others crossfade."""
+    morphed = studio.designer.morph(_design(a), _design(b), t)
+    studio.designer.show(morphed)
+    return {"summary": studio.designer.describe(morphed), "design": morphed}
+
+
+@tool
+def save_design(design: Dict[str, Any], name: Optional[str] = None) -> str:
+    """Keep a design in the library (~/.koii/designs.json) under its name, or the name given."""
+    return f"saved design '{studio.designer.save(design, name)}'"
+
+
+@tool
+def list_designs() -> dict:
+    """Saved designs (with the device slots they're uploaded to) and the recorded or loaded sources."""
+    return studio.designer.library()
+
+
+@tool
+def upload_design(design: DesignInput, slot: Optional[int] = None) -> str:
+    """
+    Render a design and upload it to the EP-133 with instrument settings: the detected root note and
+    fine tune, a seamless crossfaded loop if instrument.loop is "auto", play mode, envelope, level and
+    tempo. Same rules as upload_sample (backup first, empty or koii's own slots only, checksum verified).
+    The design is saved and linked to the slot. Uploading takes about a second per 5 KB.
+    """
+    return studio.designer.upload(_design(design), slot)["message"]
+
+
+@tool
+def change_sound_settings(slot: int, playmode: Optional[str] = None, attack: Optional[int] = None,
+                          release: Optional[int] = None, amplitude: Optional[int] = None,
+                          bpm: Optional[float] = None, bars: Optional[float] = None) -> str:
+    """
+    Change one of koii's uploads in place (no re-upload): playmode oneshot/key/legato, the device's
+    attack and release (0–255), amplitude (0–100), or tempo sync (bpm and bars; bpm=0 turns it off).
+    """
+    instrument: Dict[str, Any] = {key: value for key, value in
+                                  {"playmode": playmode, "attack": attack, "release": release,
+                                   "amplitude": amplitude}.items() if value is not None}
+    if bpm is not None:
+        instrument.update({"tempo": "off"} if bpm == 0 else {"tempo": "bpm", "bpm": bpm, "bars": bars or 1})
+    if not instrument:
+        raise ValueError("nothing to change: give playmode, attack, release, amplitude or bpm")
+    stored = studio.designer.change_settings(slot, instrument)
+    shown = {key: stored.get(key) for key in ("sound.playmode", "envelope.attack", "envelope.release",
+                                              "sound.amplitude", "time.mode", "sound.bpm", "sound.bars")}
+    return f"slot {slot} now: " + ", ".join(f"{key} {value}" for key, value in shown.items())
+
+
+@tool
+def make_kit(style: str = "808", upload: bool = False, first_slot: Optional[int] = None) -> dict:
+    """
+    Twelve designs in a style (808, 909, lofi, acoustic, industrial, glitch), in group A pad order.
+    upload=True puts them in twelve consecutive empty slots in the background (a couple of minutes;
+    progress in kit_status and the visualiser) and returns which pad gets which slot.
+    """
+    kit = studio.designer.kit(style)
+    if not upload:
+        return {"kit": [{"pad": item["pad"], "role": item["role"], "name": item["design"]["name"]} for item in kit],
+                "designs": [item["design"] for item in kit]}
+    started = studio.designer.start_kit_upload(style, first_slot)
+    return {"message": started["message"], "first_slot": started["first"]}
+
+
+@tool
+def kit_status() -> dict:
+    """Progress of a kit or slice upload started by make_kit or the visualiser."""
+    return studio.designer.kit_status()
+
+
+@tool
+def chop_source(source: str, slices: Optional[int] = None, starts: Optional[List[float]] = None,
+                sensitivity: float = 0.5, upload: bool = False, first_slot: Optional[int] = None) -> dict:
+    """
+    Cut a recorded or loaded source (see list_designs) into slices: equal parts (slices=8), at given times
+    in seconds (starts=[...]), or at detected hits (neither; sensitivity 0–1). upload=True puts up to
+    twelve slices in consecutive empty slots, in the background.
+    """
+    pieces = studio.designer.chop(source, [], starts, slices, sensitivity)
+    result: Dict[str, Any] = {"slices": [{"id": p["id"], "name": p["name"], "seconds": p["seconds"]} for p in pieces]}
+    if upload:
+        result["upload"] = studio.designer.upload_slices([p["id"] for p in pieces], first_slot)["message"]
+    return result
 
 
 # -- kit --------------------------------------------------------------------
@@ -336,6 +496,23 @@ def notation_guide() -> str:
 def device_guide() -> str:
     """EP-133 MIDI facts, setup for pitched tracks, and troubleshooting."""
     return _read_doc("DEVICE.md")
+
+
+@server.prompt()
+def sound_design_guide() -> str:
+    """How designs work: engines, modulation, effects, instrument settings, variation and recipes."""
+    return _read_doc("SOUND_DESIGN.md")
+
+
+@server.prompt()
+def design_a_sound(idea: str = "a warm, dusty electric piano") -> str:
+    """Start a sound design session."""
+    return (
+        f"Let's design {idea} for my EP-133. Read the sound_design_guide, start from the closest preset with "
+        "design_sound, and tell me what you hear in the analysis. Change one or two things at a time, show each "
+        "version in the visualiser so I can listen, and offer vary_sound when we want ideas. When I'm happy, "
+        "upload it with upload_design and tell me which slot and how to put it on a pad."
+    )
 
 
 @server.prompt()

@@ -84,16 +84,14 @@ const samples = new SampleBrowser({
   backup: $("#backup-btn"), cancel: $("#backup-cancel"), progress: $("#backup-progress"),
   fill: $("#backup-fill"), text: $("#backup-text"),
 }, (message, isError) => toast(message, isError));
-// The designer wires up its own controls; nothing else needs a handle on it.
-new SoundDesigner({
-  presets: $("#designer-presets"), controls: $("#designer-controls"), wave: $("#designer-wave"),
-  readout: $("#designer-readout"), preview: $("#designer-preview"), upload: $("#designer-upload"),
-  name: $("#designer-name"), slot: $("#designer-slot"), file: $("#designer-file"),
-  stereo: $("#designer-stereo"), randomise: $("#designer-randomise"),
-}, {
+const designer = new SoundDesigner({
   toast: (message, isError) => toast(message, isError),
-  suggestSlot: () => command("suggest_slot"),
   onUploaded: () => samples.listing && samples.load(true),
+  getPlayables: () => ({
+    current: editor.text.trim(),
+    patterns: (state.server?.library.patterns || []).map((pattern) => pattern.name),
+    songs: (state.server?.library.songs || []).map((song) => song.name),
+  }),
 });
 const sound = new SoundScope({
   scope: $("#scope-canvas"),
@@ -405,6 +403,10 @@ function onEvent(event) {
       return;
     case "activity": return addActivity(event);
     case "backup": return samples.onBackup(event);
+    case "design":
+    case "designs":
+    case "kit":
+      return designer.onEvent(event);
     case "connection":
     case "library":
       return refreshState();
@@ -846,6 +848,7 @@ function start() {
     else renderConnection();
   });
   requestAnimationFrame(frame);
+  designer.start().catch((error) => toast(`The sound designer couldn't start: ${error.message}`, true));
 }
 
 start();
