@@ -81,12 +81,14 @@ Set per pad in Sound Edit: **ONESHOT** is monophonic and plays the whole sample 
 is ignored); **KEY** is polyphonic and stops on note-off; **LEGATO** is the third option.
 The notation's `-` (hold) only changes the sound in KEY and LEGATO modes.
 
-## Velocity (official)
+## Velocity (official, hardware-checked)
 
-**Pad velocity is OFF by default** (system setting code 300). The guide doesn't say
-whether this also flattens incoming MIDI velocity, so if `o`, `X` and `1`–`9` all sound
-the same, turn it on: SHIFT + ERASE for system settings, type **301**, then ENTER.
-(Hi/lo variants exist; check the system page for your OS version.)
+**Pad velocity is OFF by default** (system setting code 300). That only affects playing
+the pads by hand: on hardware with it off, pad presses went out at a fixed velocity 100,
+but **incoming MIDI velocity was still respected** (soft and loud kicks, and a 1–9 hat
+ramp, were clearly audible). So `o`, `X` and `1`–`9` work without changing any setting.
+To make the pads themselves velocity-sensitive: SHIFT + ERASE for system settings, type
+**301**, then ENTER.
 
 ## Other MIDI facts
 
@@ -134,7 +136,7 @@ Aliases are saved in the library.
   pads. `audition("kick")` sends a single hit.
 - **Port not found:** use a data-capable USB-C cable; `list_midi_ports()` shows what the
   computer sees (the EP-133 appears as `EP-133`).
-- **All hits the same volume:** try turning pad velocity on (see above).
+- **All hits the same volume:** check the pattern uses `o`, `X` or `1`–`9`; incoming MIDI velocity works even with pad velocity off.
 - **Doubled or runaway notes:** if a DAW or MIDI router sends the EP-133's output back
   into it, it will replay its own notes. Disable that route or MIDI thru.
 - **Bassline plays drum pads instead:** the pitched track's channel isn't assigned to a

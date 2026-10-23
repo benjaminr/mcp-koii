@@ -149,3 +149,8 @@ def test_arrangements():
     with pytest.raises(NotationError):
         parse_arrangement("intro x2 x3")
     assert looks_like_pattern("kick: x...") and not looks_like_pattern("verse x4, chorus")
+
+
+def test_render_shows_steps_as_written():
+    text = render_pattern(parse_pattern("hat: 1.2.3.4.5.6.7.8.9...X..."))
+    assert "1.2.|3.4.|5.6.|7.8.|9...|X..." in text

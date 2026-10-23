@@ -72,7 +72,7 @@ own. Mistakes come back as errors with line and column, e.g.
 ## Device setup
 
 Drums need no setup. For basslines and melodies, assign the pad to a MIDI channel in
-Sound Edit (OS 2.0+). If dynamics don't come through, turn on pad velocity. Details, with
+Sound Edit (OS 2.0+). Dynamics (`o`, `X`, `1`–`9`) work with no setup. Details, with
 sources and what has been checked on hardware, are in **[DEVICE.md](DEVICE.md)**.
 
 ## Tools

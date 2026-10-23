@@ -85,6 +85,7 @@ class Track:
     name: str
     target: Target
     steps: List[Step] = field(default_factory=list)
+    symbols: List[str] = field(default_factory=list)  # step characters as written, for display
     notes: List[Tuple[int, ...]] = field(default_factory=list)
     line: int = 0
 
@@ -167,12 +168,15 @@ def resolve_name(name: str, maps: Dict[str, Target], aliases: Dict[str, str]) ->
 # Pattern parser
 # ---------------------------------------------------------------------------
 
-def _parse_steps(text: str, line_no: int, col0: int, issues: List[Issue]) -> List[Step]:
+def _parse_steps(text: str, line_no: int, col0: int, issues: List[Issue]) -> Tuple[List[Step], List[str]]:
+    """Parse one line of steps. Returns the step values and the characters they came from."""
     steps: List[Step] = []
+    symbols: List[str] = []
     for i, ch in enumerate(text):
         col = col0 + i
         if ch in IGNORED_CHARS:
             continue
+        symbols.append(ch)
         if ch in STEP_VELOCITY:
             steps.append(STEP_VELOCITY[ch])
         elif ch in REST_CHARS:
@@ -191,7 +195,7 @@ def _parse_steps(text: str, line_no: int, col0: int, issues: List[Issue]) -> Lis
                 "spaces and | are ignored",
             ))
             steps.append(None)
-    return steps
+    return steps, symbols
 
 
 def _parse_directive(body: str, line_no: int, settings: Dict, maps: Dict[str, Target],
@@ -282,10 +286,11 @@ def parse_pattern(text: str, aliases: Optional[Dict[str, str]] = None) -> Patter
                 ))
                 target = Target("note", note=0, label="?")
             tracks[key] = Track(name=name, target=target, line=line_no)
-        steps = _parse_steps(steps_text, line_no, col, issues)
+        steps, symbols = _parse_steps(steps_text, line_no, col, issues)
         if not steps:
             issues.append(Issue(line_no, None, f"track '{name}' has no steps"))
         tracks[key].steps.extend(steps)
+        tracks[key].symbols.extend(symbols)
 
     for line_no, name, notes_text, col in note_lines:
         track = tracks.get(name.lower())
@@ -360,21 +365,10 @@ def parse_pattern(text: str, aliases: Optional[Dict[str, str]] = None) -> Patter
 # Rendering (normalised view returned to the user / Claude)
 # ---------------------------------------------------------------------------
 
-def format_steps(steps: List[Step], group: int) -> str:
-    out = []
-    inv = {v: k for k, v in STEP_VELOCITY.items() if not k.isdigit()}
-    for i, step in enumerate(steps):
-        if i and i % group == 0:
-            out.append("|")
-        if step is None:
-            out.append(".")
-        elif step == HOLD:
-            out.append("-")
-        elif step in inv:
-            out.append(inv[step])
-        else:
-            out.append(str(min(9, max(1, round(step * 9 / 127)))))
-    return "".join(out)
+def format_steps(symbols: List[str], steps_per_beat: int) -> str:
+    """Step characters as written, with a '|' between beats."""
+    beats = [symbols[i:i + steps_per_beat] for i in range(0, len(symbols), steps_per_beat)]
+    return "|".join("".join(beat) for beat in beats)
 
 
 def render_pattern(pattern: Pattern) -> str:
@@ -392,7 +386,7 @@ def render_pattern(pattern: Pattern) -> str:
         target = track.target.label
         if track.target.kind != "channel":
             target = f"{target} ({track.target.note})" if track.target.label != str(track.target.note) else target
-        row = f"  {track.name.ljust(width)}  {target.ljust(10)} {format_steps(track.steps, steps_per_beat)}"
+        row = f"  {track.name.ljust(width)}  {target.ljust(10)} {format_steps(track.symbols, steps_per_beat)}"
         if len(track.steps) < pattern.length:
             row += f"  ×{pattern.length // len(track.steps)}"
         if track.notes:
