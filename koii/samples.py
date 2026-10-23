@@ -119,9 +119,12 @@ class DeviceLibrary:
         self.uploads_path.parent.mkdir(parents=True, exist_ok=True)
         self.uploads_path.write_text(json.dumps({str(k): v for k, v in sorted(uploads.items())}, indent=2))
 
-    def is_ours(self, slot: int) -> bool:
-        """True if the slot holds a sound koii uploaded and nobody has changed since."""
-        return self._ours(slot, self.sounds(refresh=True))
+    def is_ours(self, slot: int, sounds: Optional[List[Sound]] = None) -> bool:
+        """
+        True if the slot holds a sound koii uploaded and nobody has changed since. Pass a listing
+        you've just read to check many slots without reading the device again for each.
+        """
+        return self._ours(slot, sounds if sounds is not None else self.sounds(refresh=True))
 
     def _ours(self, slot: int, sounds: List[Sound]) -> bool:
         """True if the slot holds exactly the sound koii uploaded there (or left there unfinished)."""
@@ -131,9 +134,9 @@ class DeviceLibrary:
             return False
         return current.crc in (entry.get("crc"), entry.get("device_crc"))
 
-    def suggest_slot(self) -> int:
-        """The first empty slot from FIRST_SUGGESTED_SLOT, else the first empty one."""
-        taken = {s.slot for s in self.sounds()}
+    def suggest_slot(self, also_taken: Optional[set] = None) -> int:
+        """The first empty slot from FIRST_SUGGESTED_SLOT, else the first empty one (also skipping also_taken)."""
+        taken = {s.slot for s in self.sounds()} | (also_taken or set())
         for slot in list(range(FIRST_SUGGESTED_SLOT, SLOT_COUNT + 1)) + list(range(1, FIRST_SUGGESTED_SLOT)):
             if slot not in taken:
                 return slot

@@ -16,6 +16,7 @@ import numpy as np
 
 from koii.synth.analysis import crossfade_loop, detect_pitch, find_loop
 from koii.synth.engine import Rendered
+from koii.synth.edit import to_pcm
 
 PITCH_CONFIDENCE = 0.8       # below this, "auto" root leaves the sound at C4
 LOOP_QUALITY = 0.9           # below this, "auto" loop gives up rather than click
@@ -32,10 +33,6 @@ class DeviceSound:
     @property
     def seconds(self) -> float:
         return len(self.pcm) / (2 * self.channels * 46875)
-
-
-def _to_pcm(audio: np.ndarray) -> bytes:
-    return (np.round(np.clip(audio, -1, 1).T * 32767).astype("<i2")).tobytes()
 
 
 def _root(instrument: Dict[str, Any], audio: np.ndarray, notes: List[str]) -> Dict[str, Any]:
@@ -93,4 +90,4 @@ def prepare(rendered: Rendered) -> DeviceSound:
         notes.append(f"tempo sync on: {instrument['bars']:g} bar(s) at {instrument['bpm']:g} BPM")
     else:
         metadata["time.mode"] = "off"
-    return DeviceSound(pcm=_to_pcm(audio), channels=audio.shape[0], metadata=metadata, notes=notes)
+    return DeviceSound(pcm=to_pcm(audio), channels=audio.shape[0], metadata=metadata, notes=notes)

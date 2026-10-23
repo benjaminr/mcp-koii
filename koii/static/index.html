@@ -70,7 +70,7 @@
   <main class="layout view" data-view="beat" aria-label="Beat: make a pattern">
     <section class="module device-panel" data-module="device" data-span="4" aria-label="Device">
       <h2 class="module-head"><span class="module-index">01</span>device</h2>
-      <div class="fit-box">
+      <div class="fit-box" data-grow="clip">
       <div class="module-parts" data-regions="device" data-fit-scale>
         <div data-region="device" data-region-label="device"><div id="device"></div></div>
         <div class="keys-wrap" data-region="keys" data-region-label="keyboard">
@@ -117,7 +117,7 @@
         </span>
       </div>
 
-      <div id="tab-grid" class="tab-body" data-regions="pattern">
+      <div id="tab-grid" class="tab-body" data-regions="pattern" data-grow>
         <div class="brush-row" data-region="brushes" data-region-label="brushes">
           <div class="brushes" id="brushes" role="toolbar" aria-label="Brush"></div>
           <button id="key-btn" class="btn ghost small key-btn" type="button" aria-pressed="false" aria-controls="grid-key" title="What the symbols and colours mean">? key</button>
@@ -129,11 +129,11 @@
           <button id="add-track-btn" class="btn" type="button">+ track</button>
         </div>
       </div>
-      <div id="tab-text" class="tab-body" hidden>
+      <div id="tab-text" class="tab-body" data-grow hidden>
         <textarea id="text" spellcheck="false" aria-label="Pattern notation"></textarea>
         <p class="hint">One character per step: <b>x</b> hit · <b>X</b> accent · <b>o</b> ghost · <b>1–9</b> levels · <b>.</b> rest · <b>-</b> hold. Spaces and <b>|</b> are ignored.</p>
       </div>
-      <div id="tab-notation" class="tab-body" hidden>
+      <div id="tab-notation" class="tab-body" data-grow hidden>
         <div id="notation" class="notation"></div>
         <div id="notation-legend" class="legend"></div>
       </div>
@@ -143,7 +143,7 @@
     <section class="module" data-module="patterns" data-span="3" aria-label="Patterns">
       <h2 class="module-head"><span class="module-index">03</span>patterns</h2>
       <input class="name-input small pattern-filter" type="search" placeholder="filter: deep, kr-, bass…" spellcheck="false" aria-label="Filter patterns">
-      <div class="library pattern-list"></div>
+      <div class="library pattern-list" data-grow></div>
       <div class="caption pattern-caption">click to open · <b>+</b> adds one to the song · drag into the arranger</div>
     </section>
   </main>
@@ -152,12 +152,12 @@
     <section class="module" data-module="patterns" data-span="3" aria-label="Patterns">
       <h2 class="module-head"><span class="module-index">01</span>patterns</h2>
       <input class="name-input small pattern-filter" type="search" placeholder="filter: deep, kr-, bass…" spellcheck="false" aria-label="Filter patterns">
-      <div class="library pattern-list"></div>
+      <div class="library pattern-list" data-grow></div>
       <div class="caption pattern-caption">click to open · <b>+</b> adds one to the song · drag into the arranger</div>
     </section>
     <section class="module" data-module="song" data-span="9" aria-label="Song">
       <h2 class="module-head"><span class="module-index">02</span>song</h2>
-      <div class="arrange">
+      <div class="arrange" data-grow>
         <div class="song-bar">
           <select id="song-select" class="song-select" aria-label="Open a saved song"></select>
           <input id="song-name" class="name-input small" placeholder="song name" spellcheck="false" aria-label="Song name">
@@ -166,7 +166,7 @@
           <button id="arr-clear" class="btn ghost" type="button" title="Start a new, empty song">new</button>
         </div>
         <div class="caption">arrange · light cells in a column to layer patterns, add columns to play them in turn</div>
-        <div id="arranger" class="arranger"></div>
+        <div id="arranger" class="arranger" data-grow></div>
         <div id="arrangement-issues" class="issues small"></div>
         <div class="row arrange-controls">
           <button id="arr-play" class="btn primary transport-play" type="button" title="Play the song, or stop it">▶ play song</button>
@@ -195,9 +195,9 @@
         </div>
       </div>
 
-      <div id="designer-page-design" class="designer-page">
+      <div id="designer-page-design" class="designer-page" data-grow>
         <div class="designer-body" data-split="design">
-          <div id="designer-controls" class="design-controls"></div>
+          <div class="design-controls-scroll"><div id="designer-controls" class="design-controls"></div></div>
           <div class="designer-output" data-regions="design-output">
             <figure class="screen-panel" data-region="wave" data-region-label="waveform"><figcaption>sound · as the device will get it</figcaption><canvas id="designer-wave"></canvas></figure>
             <div class="designer-screens" data-region="screens" data-region-label="spectrum and spectrogram" data-regions="design-screens" data-regions-wide>
@@ -245,7 +245,7 @@
         </div>
       </div>
 
-      <div id="designer-page-sample" class="designer-page" hidden>
+      <div id="designer-page-sample" class="designer-page" data-grow hidden>
         <div class="row sample-actions">
           <button id="sampler-record" class="btn toggle" type="button" aria-pressed="false" title="Record the EP-133's audio (USB input)"><span class="led rec"></span>record</button>
           <label class="btn ghost file-btn" title="Load a WAV, AIFF, MP3… (converted to 46,875 Hz)">load file<input id="sampler-file" type="file" accept="audio/*"></label>
@@ -293,7 +293,7 @@
         <p class="hint">Recording uses the EP-133's USB audio input (the browser asks once). Sources live in ~/.koii/sources; edits never change the original. Device sounds can be sampled too: in a sample layer, type a slot number.</p>
       </div>
 
-      <div id="designer-page-kit" class="designer-page" hidden>
+      <div id="designer-page-kit" class="designer-page" data-grow hidden>
         <div class="row">
           <div id="kit-styles" class="brushes kit-styles" role="toolbar" aria-label="Kit style"></div>
           <button id="kit-upload" class="btn primary" type="button">⤒ upload kit</button>
@@ -311,7 +311,7 @@
   <main class="layout view" data-view="device" aria-label="Device: what's on the EP-133" hidden>
     <section class="module" data-module="pads" data-span="7" aria-label="Pads">
       <h2 class="module-head"><span class="module-index">01</span>pads</h2>
-      <div class="fit-box">
+      <div class="fit-box" data-grow="clip">
       <div class="pads-body" data-fit-scale>
       <div class="caption">the open project's pads, live on the EP-133 · click one to change it</div>
       <div id="pad-grid" class="pad-grid"></div>
@@ -339,7 +339,7 @@
     <section class="module" data-module="packs" data-span="5" aria-label="Packs">
       <h2 class="module-head"><span class="module-index">02</span>packs</h2>
       <div class="caption">demos and kits: samples, pads, patterns and songs in one go · remove them to free space</div>
-      <div id="pack-list" class="pack-list"></div>
+      <div id="pack-list" class="pack-list" data-grow></div>
       <div id="pack-progress" class="backup-progress" hidden>
         <div class="np-bar"><div id="pack-fill" class="np-fill"></div></div>
         <span id="pack-text" class="backup-text"></span>
@@ -362,7 +362,7 @@
         <div class="np-bar"><div id="backup-fill" class="np-fill"></div></div>
         <span id="backup-text" class="backup-text"></span>
       </div>
-      <div class="samples-body" data-split="samples">
+      <div class="samples-body" data-split="samples" data-grow>
         <div id="sample-list" class="sample-list"></div>
         <div class="sample-detail">
           <figure class="screen-panel"><figcaption id="sample-title">waveform</figcaption><canvas id="sample-wave"></canvas></figure>

@@ -185,6 +185,14 @@ class SoundDesigner:
         result["message"] += "".join(f"\n  · {note}" for note in device_sound.notes)
         return result
 
+    def ensure_uploaded(self, name: str) -> int:
+        """A slot holding this saved design: one it's already in on the device, or a fresh upload."""
+        design = self.designs.get(name)
+        for slot in self.designs.slots_of(name):
+            if self.samples.is_ours(slot):
+                return slot
+        return self.upload(design)["slot"]
+
     def delete_upload(self, slot: int) -> str:
         """Delete one of koii's uploads and forget which design it came from."""
         message = self.samples.delete_upload(slot)

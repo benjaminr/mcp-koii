@@ -66,8 +66,17 @@ class Pad:
         return f"{self.group}{self.key}"
 
     def node(self, project: int) -> int:
-        return (FIRST_PROJECT_NODE + (project - 1) * NODES_PER_PROJECT + FIRST_PAD_NODE
-                + GROUPS.index(self.group) * NODES_PER_GROUP + NODE_NUMBER[self.key])
+        return group_node(project, self.group) + NODE_NUMBER[self.key]
+
+
+def project_node(project: int) -> int:
+    """The project's folder in the device's file tree: 3000 for project 1, 4000 for 2 …"""
+    return FIRST_PROJECT_NODE + (project - 1) * NODES_PER_PROJECT
+
+
+def group_node(project: int, group: str) -> int:
+    """A group's folder: its pads are this plus 1–12."""
+    return project_node(project) + FIRST_PAD_NODE + GROUPS.index(group) * NODES_PER_GROUP
 
 
 def parse_pad(text: str) -> Pad:
@@ -177,18 +186,17 @@ class PadEditor:
         """
         if not isinstance(project, int) or not 1 <= project <= PROJECT_COUNT:
             raise PadError(f"projects are 1–{PROJECT_COUNT}, not {project!r}")
-        node = FIRST_PROJECT_NODE + (project - 1) * NODES_PER_PROJECT
-        groups = node + GROUPS_NODE_OFFSET
+        group_a = group_node(project, "A")
         with self.client.session("pads: open project") as session:
             previous = _active_project(session)
             if previous != project:
                 session.preflight()
-                session.set_metadata(PROJECTS_NODE, {"active": node})
+                session.set_metadata(PROJECTS_NODE, {"active": project_node(project)})
                 time.sleep(SETTLE_SECONDS)
                 if _active_project(session) != project:
                     raise PadError(f"the EP-133 stayed on project {previous}")
-                session.set_metadata(groups, {"active": groups + NODES_PER_GROUP})            # group A
-                session.set_metadata(groups + NODES_PER_GROUP, {"active": groups + NODES_PER_GROUP + 1})  # its first pad
+                session.set_metadata(project_node(project) + GROUPS_NODE_OFFSET, {"active": group_a})   # group A
+                session.set_metadata(group_a, {"active": group_a + 1})                                  # its first pad
         if previous != project:
             time.sleep(PROJECT_SETTLE_SECONDS)
         self.events.publish("project", project=project, previous=previous)

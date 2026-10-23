@@ -31,9 +31,9 @@ from typing import Any, Callable, Dict, List, Optional
 
 from koii.events import EventBus
 from koii.files import DEVICE_SAMPLE_RATE
-from koii.pads import PadEditor, PadError, parse_pad
+from koii.pads import PadEditor, parse_pad
 from koii.samples import DeviceLibrary, UploadRefused
-from koii.synth.edit import read_wav_bytes, to_device_rate
+from koii.synth.edit import load_for_device, read_wav_bytes, to_pcm
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +62,20 @@ class Pack:
 
     def sample_bytes(self) -> int:
         """Roughly what the pack's samples take on the device (16-bit mono or stereo)."""
-        total = 0
-        for sample in self.manifest.get("samples", []):
-            audio, rate = read_wav_bytes(self.sample_path(sample).read_bytes())
-            total += int(audio.shape[1] * DEVICE_SAMPLE_RATE / rate) * 2 * audio.shape[0]
-        return total
+        return sum(_device_bytes(self.sample_path(sample)) for sample in self.manifest.get("samples", []))
+
+
+_sizes: Dict[tuple, int] = {}
+
+
+def _device_bytes(path: Path) -> int:
+    """A WAV's size once on the device, remembered per file (by size and time) so listings don't decode it again."""
+    stat = path.stat()
+    key = (str(path), stat.st_size, stat.st_mtime_ns)
+    if key not in _sizes:
+        audio, rate = read_wav_bytes(path.read_bytes())
+        _sizes[key] = int(audio.shape[1] * DEVICE_SAMPLE_RATE / rate) * 2 * min(audio.shape[0], 2)
+    return _sizes[key]
 
 
 def read_pack(folder: Path) -> Pack:
@@ -148,21 +157,20 @@ class PackStore:
     def start_install(self, name: str, project: int) -> Dict[str, Any]:
         """Install in the background; progress arrives as 'pack' events and in status()."""
         pack = self.get(name)
-        if self._job and self._job.is_alive():
-            raise PackError(f"already busy with {self._status.get('pack')}; wait for it to finish")
-        self._status = {"running": True, "pack": name, "stage": "starting", "done": 0, "total": 0, "error": None}
-        self._job = threading.Thread(target=self._run, args=(self.install, pack, project), name="koii-pack", daemon=True)
-        self._job.start()
-        return {"message": f"installing '{pack.manifest.get('title', name)}' into project {project}…", **self.status()}
+        return self._start(pack, "starting", f"installing '{pack.manifest.get('title', name)}' into project {project}…",
+                           self.install, project)
 
     def start_remove(self, name: str) -> Dict[str, Any]:
         pack = self.get(name)
+        return self._start(pack, "removing", f"removing '{name}'…", self.remove)
+
+    def _start(self, pack: Pack, stage: str, message: str, work: Callable, *args) -> Dict[str, Any]:
         if self._job and self._job.is_alive():
             raise PackError(f"already busy with {self._status.get('pack')}; wait for it to finish")
-        self._status = {"running": True, "pack": name, "stage": "removing", "done": 0, "total": 0, "error": None}
-        self._job = threading.Thread(target=self._run, args=(self.remove, pack), name="koii-pack", daemon=True)
+        self._status = {"running": True, "pack": pack.name, "stage": stage, "done": 0, "total": 0, "error": None}
+        self._job = threading.Thread(target=self._run, args=(work, pack, *args), name="koii-pack", daemon=True)
         self._job.start()
-        return {"message": f"removing '{name}'…", **self.status()}
+        return {"message": message, **self.status()}
 
     def _run(self, work: Callable, *args) -> None:
         try:
@@ -181,22 +189,24 @@ class PackStore:
         manifest = pack.manifest
         state = self._state()
         record = state.get(pack.name) or {"project": project, "slots": {}, "designs": {}}
+        record["designs"] = {}   # upload_design checks the device itself
         samples = manifest.get("samples", [])
         pads = manifest.get("pads", {})
         steps = len(samples) + len(pads) + 1
 
-        # 1. the pack's samples: keep ones already on the device, upload the rest
-        on_device = {s.slot for s in self.samples.sounds(refresh=True)}
+        # 1. the pack's samples: keep ones already on the device, upload the rest. One listing up
+        # front answers both "is it still ours?" and "which slots are free?" for every sample.
+        listing = self.samples.sounds(refresh=True)
+        used = {s.slot for s in listing}
         for index, sample in enumerate(samples):
             self._progress("uploading", index, steps, sample["name"])
             slot = record["slots"].get(sample["id"])
-            if slot and slot in on_device and self.samples.is_ours(slot):
+            if slot and self.samples.is_ours(slot, listing):
                 continue
-            audio, rate = read_wav_bytes(pack.sample_path(sample).read_bytes())
-            audio = to_device_rate(audio, rate)
-            pcm = (audio.T.clip(-1, 1) * 32767).astype("<i2").tobytes()
-            slot = self.samples.suggest_slot()
-            self.samples.upload(slot, pcm, sample["name"], audio.shape[0], sample.get("settings"))
+            audio = load_for_device(pack.sample_path(sample).read_bytes())
+            slot = self.samples.suggest_slot(also_taken=used)
+            self.samples.upload(slot, to_pcm(audio), sample["name"], audio.shape[0], sample.get("settings"))
+            used.add(slot)
             record["slots"][sample["id"]] = slot
             state[pack.name] = record
             self._save_state(state)   # after every upload, so an interrupted install can carry on
@@ -212,11 +222,9 @@ class PackStore:
             elif "sound" in source:
                 settings["sound"] = source["sound"]
             elif "design" in source:
-                slot = record["designs"].get(source["design"])
-                if not (slot and self.samples.is_ours(slot)):
-                    slot = self.upload_design(source["design"])
-                    record["designs"][source["design"]] = slot
-                settings["sound"] = slot
+                if source["design"] not in record["designs"]:   # each design once per install, however many pads use it
+                    record["designs"][source["design"]] = self.upload_design(source["design"])
+                settings["sound"] = record["designs"][source["design"]]
             self.pads.set(pad, **settings)
 
         # 3. patterns and songs
@@ -273,5 +281,3 @@ class PackStore:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         self.state_path.write_text(json.dumps(state, indent=1))
 
-
-__all__ = ["Pack", "PackError", "PackStore", "read_pack", "PadError"]

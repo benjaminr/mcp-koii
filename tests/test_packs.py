@@ -53,9 +53,10 @@ def store(monkeypatch, tmp_path):
     backup_device(client, tmp_path / "backups")
     saved = {"patterns": {}, "songs": {}, "designs": 0}
 
-    def upload_design(name):
-        saved["designs"] += 1
-        samples.upload(KEYS_UPLOAD, b"\x03\x00" * 900, name)
+    def upload_design(name):   # like SoundDesigner.ensure_uploaded: reuse it if it's still there
+        if not samples.is_ours(KEYS_UPLOAD):
+            saved["designs"] += 1
+            samples.upload(KEYS_UPLOAD, b"\x03\x00" * 900, name)
         return KEYS_UPLOAD
 
     pads = PadEditor(events, tmp_path, client)

@@ -5,11 +5,12 @@
 // Interactive: pads (audition), group keys (choose which group the pads show),
 // PLAY (play/stop), − and + (tempo). Other keys are there for the look.
 
-const PAD_KEYS = [".", "0", "Enter", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+export const PAD_KEYS = [".", "0", "Enter", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 const GROUP_BASE = { A: 36, B: 48, C: 60, D: 72 };
 const GROUPS = ["A", "B", "C", "D"];
 const GROUP_ICONS = { A: "✳", B: "↩", C: "↥", D: "↧" };
-const PAD_ROWS = [["7", "8", "9"], ["4", "5", "6"], ["1", "2", "3"], [".", "0", "Enter"]];
+// The keypad as printed, top row first.
+export const PAD_ROWS = [["7", "8", "9"], ["4", "5", "6"], ["1", "2", "3"], [".", "0", "Enter"]];
 // Knob-mode labels printed between the pad rows on the device.
 const ROW_LABELS = [["LEVEL", "PITCH", "TIME"], ["LPF", "HPF", "→FX"], ["ATK", "REL", "PAN"], ["TUNE", "VEL", "MOD"]];
 const MIN_LIT_MS = 90;

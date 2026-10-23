@@ -3,13 +3,13 @@
 // here. Only the settings you change are written, and the server checks the device kept them.
 
 import { command } from "./api.js";
-import { CONTENT_CHANGED } from "./layout.js";
+import { element } from "./design-controls.js";
+import { PAD_KEYS, PAD_ROWS } from "./device.js";
 
 const GROUPS = ["A", "B", "C", "D"];
-const KEYS = [".", "0", "Enter", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+export const PROJECT_COUNT = 9;
+export const FIRST_EMPTY_PROJECT = 6;   // projects 6–9 start empty on the EP-133
 const READ_DELAY_MS = 350;   // clicking pads quickly reads only the last one
-// Each group drawn like the EP-133's keypad, top row first.
-const KEYPAD_ROWS = [["7", "8", "9"], ["4", "5", "6"], ["1", "2", "3"], [".", "0", "Enter"]];
 const MODE_MARK = { key: "K", legato: "L" };
 
 const $ = (id) => document.getElementById(id);
@@ -25,14 +25,14 @@ export class PadPanel {
     for (const group of GROUPS) {
       const options = document.createElement("optgroup");
       options.label = `group ${group}`;
-      for (const key of KEYS) options.append(new Option(`${group}${key}`, `${group}${key}`));
+      for (const key of PAD_KEYS) options.append(new Option(`${group}${key}`, `${group}${key}`));
       select.append(options);
     }
     const channel = $("pad-channel");
     channel.append(new Option("none", "none"));
     for (let n = 1; n <= 16; n++) channel.append(new Option(`ch ${n}`, String(n)));
     const project = $("project-select");
-    for (let n = 1; n <= 9; n++) project.append(new Option(String(n), String(n)));
+    for (let n = 1; n <= PROJECT_COUNT; n++) project.append(new Option(String(n), String(n)));
     project.addEventListener("change", () => this.openProject(Number(project.value)));
     select.addEventListener("change", () => this.read());
     $("pad-read").addEventListener("click", () => this.read());
@@ -41,64 +41,66 @@ export class PadPanel {
     $("pad-level").addEventListener("input", () => { $("pad-level-value").textContent = $("pad-level").value; });
   }
 
-  /** Read all 48 pads of the open project and draw the map. */
-  async loadMap() {
+  /** Read all 48 pads of the open project and draw the map (one read at a time: callers share it). */
+  loadMap() {
+    this.loading ??= this._loadMap().finally(() => { this.loading = null; });
+    return this.loading;
+  }
+
+  async _loadMap() {
     try {
       const result = await command("pads", {});
       this.pads = new Map(result.pads.map((pad) => [pad.pad, pad]));
       $("project-select").value = String(result.project);
       this.drawMap();
     } catch (error) {
-      $("pad-grid").replaceChildren(Object.assign(document.createElement("p"), {
-        className: "hint", textContent: `Couldn't read the pads: ${error.message}`,
-      }));
+      $("pad-grid").replaceChildren(element("p", "hint", `Couldn't read the pads: ${error.message}`));
     }
   }
 
   drawMap() {
     const selected = $("pad-select").value;
     const groups = GROUPS.map((group) => {
-      const box = document.createElement("div");
-      box.className = "pad-map-group";
-      const title = document.createElement("div");
-      title.className = "pad-map-title";
-      title.textContent = group;
-      box.append(title);
-      for (const row of KEYPAD_ROWS) {
+      const box = element("div", "pad-map-group");
+      box.append(element("div", "pad-map-title", group));
+      for (const row of PAD_ROWS) {
         for (const key of row) box.append(this.mapCell(`${group}${key}`, selected));
       }
       return box;
     });
     $("pad-grid").replaceChildren(...groups);
-    window.dispatchEvent(new Event(CONTENT_CHANGED));   // the map's size changed: fit it again
   }
 
   mapCell(label, selected) {
     const pad = this.pads.get(label) || { pad: label };
-    const cell = document.createElement("button");
+    const cell = element("button", `pad-map-cell${pad.sound ? "" : " empty"}${label === selected ? " selected" : ""}${pad.channel ? " pitched" : ""}`);
     cell.type = "button";
-    cell.className = `pad-map-cell${pad.sound ? "" : " empty"}${label === selected ? " selected" : ""}${pad.channel ? " pitched" : ""}`;
+    cell.dataset.pad = label;
     const key = label.slice(1) === "Enter" ? "ENT" : label.slice(1);
     const name = pad.sound ? (pad.name || `slot ${pad.sound}`) : "empty";
     cell.title = pad.sound
       ? `${label}: ${name} (slot ${pad.sound})${pad.channel ? `, channel ${pad.channel}` : ""}, ${pad.mode}, level ${pad.level}`
       : `${label}: empty`;
-    const top = document.createElement("span");
-    top.className = "pad-map-key num";
-    top.textContent = key;
-    const tags = document.createElement("span");
-    tags.className = "pad-map-tags num";
-    tags.textContent = [pad.channel ? `ch${pad.channel}` : "", MODE_MARK[pad.mode] || ""].filter(Boolean).join(" ");
-    const sound = document.createElement("span");
-    sound.className = "pad-map-name";
-    sound.textContent = name;
-    cell.append(top, tags, sound);
+    const tags = [pad.channel ? `ch${pad.channel}` : "", MODE_MARK[pad.mode] || ""].filter(Boolean).join(" ");
+    cell.append(element("span", "pad-map-key num", key), element("span", "pad-map-tags num", tags),
+                element("span", "pad-map-name", name));
     cell.addEventListener("click", () => {
       $("pad-select").value = label;
       if (this.pads.has(label)) this.show(this.pads.get(label));
       this.read();
     });
     return cell;
+  }
+
+  /** Redraw only the changed pad and whichever cell shows the selection. */
+  redrawCells(changed) {
+    const selected = $("pad-select").value;
+    for (const cell of $("pad-grid").querySelectorAll(".pad-map-cell")) {
+      const label = cell.dataset.pad;
+      if (label === changed || cell.classList.contains("selected") !== (label === selected)) {
+        cell.replaceWith(this.mapCell(label, selected));
+      }
+    }
   }
 
   /** Show which project is open on the device (quietly: the device may not be connected yet). */
@@ -147,7 +149,7 @@ export class PadPanel {
     this.current = settings;
     if (settings?.pad) {
       this.pads.set(settings.pad, { ...this.pads.get(settings.pad), ...settings });
-      this.drawMap();
+      this.redrawCells(settings.pad);
     }
     $("pad-sound").value = settings.sound ?? "";
     $("pad-channel").value = settings.channel ? String(settings.channel) : "none";

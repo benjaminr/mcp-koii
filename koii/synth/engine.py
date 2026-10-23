@@ -16,6 +16,7 @@ from typing import Callable, Dict, Optional
 import numpy as np
 
 from koii.synth import dsp
+from koii.synth.edit import to_pcm
 from koii.synth.schema import DesignError, validate
 
 RATE = dsp.RATE
@@ -49,8 +50,7 @@ class Rendered:
 
     def pcm(self) -> bytes:
         """Interleaved 16-bit little-endian PCM, ready for the device."""
-        clipped = np.clip(self.audio, -1, 1)
-        return (np.round(clipped.T * 32767).astype("<i2")).tobytes()
+        return to_pcm(self.audio)
 
 
 def _seed(design: Dict) -> int:

@@ -22,7 +22,6 @@ from koii.notation import (
 )
 from koii.player import Player
 from koii.packs import PackStore
-from koii.synth.designs import design_key
 from koii.pads import PadEditor
 from koii.samples import DeviceLibrary
 from koii.sound_design import SoundDesigner
@@ -75,7 +74,7 @@ class Studio:
                               names=lambda: {sound.slot: sound.name for sound in self.samples.sounds()})
         self.packs = PackStore(self.events, self.library.home, self.samples, self.pads,
                                save_pattern=self.save_pattern, save_song=self.save_song,
-                               upload_design=self._upload_design)
+                               upload_design=self.designer.ensure_uploaded)
 
     # -- connection ---------------------------------------------------------
 
@@ -94,15 +93,6 @@ class Studio:
     @property
     def simulated(self) -> bool:
         return isinstance(self.port, SimulatedPort)
-
-    def _upload_design(self, name: str) -> int:
-        """A slot holding one of the saved designs (for a pack's pad): one already there, or a new upload."""
-        design = self.designer.designs.get(name)
-        saved = next((entry for entry in self.designer.designs.list() if entry["name"] == design_key(name)), None)
-        for slot in (saved or {}).get("slots", []):
-            if self.samples.is_ours(slot):
-                return slot
-        return self.designer.upload(design)["slot"]
 
     def connection_state(self) -> Dict[str, Any]:
         return {

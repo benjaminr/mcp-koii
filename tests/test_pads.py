@@ -102,7 +102,7 @@ def test_another_project_can_be_opened_and_its_pads_set(device, monkeypatch):
     monkeypatch.setattr("koii.pads.PROJECT_SETTLE_SECONDS", 0)
     assert editor.open_project(9)["message"] == "project 9 is open (was 2)"
     editor.set("A.", sound=PIANO)
-    assert fake.pads[11210]["sym"] == PIANO and CHORDS_PAD not in (11210,)
+    assert fake.pads[11210]["sym"] == PIANO and fake.pads[CHORDS_PAD]["sym"] == PIANO   # project 2's pad untouched
     assert editor.open_project(9)["message"] == "project 9 is open already"
     with pytest.raises(PadError, match="projects are 1–9"):
         editor.open_project(10)

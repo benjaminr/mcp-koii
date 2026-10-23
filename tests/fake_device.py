@@ -6,7 +6,7 @@ from collections import deque
 
 import mido
 
-from koii import files
+from koii import files, pads
 from koii.files import pack7, unpack7
 
 
@@ -74,7 +74,7 @@ class FakeEP133:
         if command == 0x07 and payload[1] == 0x02:
             slot = int.from_bytes(payload[2:4], "big")
             if slot == files.PROJECTS_NODE:
-                metadata = {"active": 3000 + (self.active_project - 1) * 1000}
+                metadata = {"active": pads.project_node(self.active_project)}
             elif slot in self.pads or 3200 <= slot < 12000:
                 metadata = self.pads.get(slot, {"sym": 0})
             elif slot not in self.sounds:
@@ -116,9 +116,10 @@ class FakeEP133:
             node = int.from_bytes(payload[2:4], "big")
             values = json.loads(payload[4:].split(b"\0", 1)[0])
             if node == files.PROJECTS_NODE:
-                self.active_project = (values["active"] - 3000) // 1000 + 1
+                self.active_project = (values["active"] - pads.FIRST_PROJECT_NODE) // pads.NODES_PER_PROJECT + 1
                 return 0, b""
-            if node % 1000 in (100,) or (node % 1000 in (200, 300, 400, 500) and node >= 3000):
+            within = node % pads.NODES_PER_PROJECT
+            if within == pads.GROUPS_NODE_OFFSET or within in range(pads.FIRST_PAD_NODE, 600, pads.NODES_PER_GROUP):
                 return 0, b""   # group and pad cursors: accepted, nothing to keep
             if 3200 <= node < 12000:
                 pad = dict(self.pads.get(node, {"sym": 0}))

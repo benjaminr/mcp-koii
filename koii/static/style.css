@@ -473,7 +473,6 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .library-meta { color: var(--muted); font-family: var(--num); font-size: 11px; white-space: nowrap; }
 .library-kind { font-family: var(--num); font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; padding: 0 4px; border: 1px solid var(--ink); border-radius: 2px; }
 .library-empty { color: var(--muted); font-size: 12px; padding: 8px 0; }
-.arrange .caption b { color: var(--ink); }
 .library-item .icon.confirming { padding: 0 5px; background: var(--warn); color: var(--ink); border-radius: 2px; font-size: 11px; }
 .arrangement-label { display: block; margin-top: 10px; }
 .arrangement {
@@ -485,8 +484,7 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 
 /* -- pattern lists (Beat and Song) ---------------------------------------------------- */
 
-.pattern-list { border-top: 0; }
-.arrange .caption b, .pattern-list ~ .caption b, .module .caption b { color: var(--ink); }
+.module .caption b { color: var(--ink); }
 .library-item[draggable="true"] { cursor: grab; }
 .library-item[draggable="true"]:active { cursor: grabbing; }
 .arrange-controls { margin-top: 10px; }
@@ -553,7 +551,7 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .arr-drop { box-shadow: inset 0 0 0 2px var(--signal); }
 .arr-empty { margin: 0; padding: 14px; color: var(--muted); font-size: 12px; }
 
-.activity { display: flex; flex-direction: column; max-height: 560px; overflow-y: auto; }
+.activity { display: flex; flex-direction: column; overflow-y: auto; }
 .activity-item { font-size: 12px; padding: 8px 0; border-bottom: 1px dashed var(--paper-3); }
 .activity-head { display: flex; gap: 7px; align-items: center; }
 .activity-time { color: var(--muted); font-family: var(--num); font-size: 11px; }
@@ -756,12 +754,9 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .layout-editing .layout-only { display: inline-flex !important; }
 .module.collapsed > :not(.module-head):not(.resize-handle) { display: none; }
 .module.collapsed > .module-head { margin-bottom: -16px; border-bottom: 0; }
-/* A stretched module (see layout.js) hands its extra height to its [data-grow] part. */
-.module.filled { display: flex; flex-direction: column; }
-.module.filled > [data-grow] { flex: 1 1 0; min-height: 0; max-height: none; }
 /* A module given a height scrolls inside it, with its header kept in view. */
 .module.sized { overflow: auto; }
-.module.sized > .module-head { position: sticky; top: -14px; z-index: 2; }
+.module.sized > .module-head, .layout.fit > .module > .module-head { position: sticky; top: -14px; z-index: 2; }
 
 .layout-bar {
   flex-basis: 100%; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
@@ -878,7 +873,6 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 
 /* -- packs (samples module) -------------------------------------------------------- */
 
-.pack-area { margin-bottom: 14px; }
 .pack-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
 .pack-card { border: var(--line) solid var(--ink); border-radius: 3px; background: #fff; padding: 10px 12px;
              box-shadow: 3px 3px 0 var(--ink); display: flex; flex-direction: column; gap: 6px; }
@@ -918,7 +912,7 @@ main.view[hidden] { display: none !important; }
 .log-drawer-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;
                    border-bottom: var(--line) solid var(--ink); font-family: var(--num); font-size: 11px;
                    text-transform: uppercase; letter-spacing: 0.06em; }
-.log-drawer .activity { flex: 1; max-height: none; overflow-y: auto; padding: 0 12px; }
+.log-drawer .activity { flex: 1; padding: 0 12px; }
 
 /* -- the pad map (Device view) ------------------------------------------------------ */
 
@@ -941,7 +935,7 @@ main.view[hidden] { display: none !important; }
 
 /* Pattern lists scroll inside their module, with a filter on top. */
 .pattern-filter { width: 100%; margin: 0 0 6px; }
-.pattern-list { max-height: calc(100vh - var(--topbar-height, 64px) - 190px); min-height: 160px; overflow-y: auto; }
+.pattern-list { border-top: 0; max-height: calc(100vh - var(--topbar-height, 64px) - 190px); min-height: 160px; overflow-y: auto; }
 .pattern-caption { margin-top: 8px; }
 
 /* A tighter top bar: the subtitle goes first when space runs short. */
@@ -957,45 +951,39 @@ html.fit-viewport, html.fit-viewport body { height: 100%; overflow: hidden; }
   padding: var(--gap); overflow: hidden; align-items: stretch;
 }
 .layout.fit > .module {
-  margin-bottom: 0; grid-row: span var(--rows, 1); min-height: 0;
+  margin-bottom: 0; grid-row: auto; min-height: 0;   /* one row each: the packed row count is for scrolling pages */
   display: flex; flex-direction: column; overflow: auto;
 }
-.layout.fit > .module > .module-head { position: sticky; top: -14px; z-index: 2; flex: none; }
+.layout.fit > .module > .module-head { flex: none; }
 .layout.fit > .module.collapsed { align-self: start; }
 
-/* Beat: the simulator scales to its column; the pattern grid and list scroll inside. */
-.layout.fit .device-panel { overflow: hidden; }
-.layout.fit .device-panel .fit-box { flex: 1; min-height: 0; overflow: hidden; }
-.layout.fit .editor-panel > .tab-body:not([hidden]) { flex: 1; min-height: 0; overflow: auto; }
-.layout.fit [data-module="patterns"] .pattern-list { flex: 1; min-height: 0; max-height: none; }
+/* In each module the part marked [data-grow] takes the height left and scrolls inside; one
+   that holds another grow part ([data-grow="clip"] or a nested one) hands the height on. */
+.layout.fit [data-grow]:not([hidden]) { flex: 1 1 0; min-height: 0; max-height: none; overflow: auto; }
+.layout.fit [data-grow="clip"] { overflow: hidden; }
+.layout.fit [data-grow]:has(> [data-grow]) { display: flex; flex-direction: column; overflow: hidden; }
+.layout.fit > .module:has(> [data-grow]) { overflow: hidden; }
+.layout.fit .pattern-filter { flex: none; }
+.layout.fit [data-fit-scale] { transform-origin: top left; }
 
-/* Song: the arranger takes the height left above the text form. */
-.layout.fit [data-module="song"] .arrange { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.layout.fit [data-module="song"] .arranger { flex: 1; min-height: 120px; overflow: auto; }
+/* Song: the arranger gets the height left above the text form. */
+.layout.fit [data-module="song"] .arranger { min-height: 120px; }
 .layout.fit [data-module="song"] .arrangement { min-height: 38px; height: 46px; }
 
-/* Sounds: the controls and the preview each scroll on their own. */
-.layout.fit .designer-panel { overflow: hidden; }
-.layout.fit .designer-panel .designer-page:not([hidden]) { flex: 1; min-height: 0; overflow: auto; }
-.layout.fit .designer-panel #designer-page-design:not([hidden]) { overflow: hidden; display: flex; }
-/* The controls scroll; the preview sticks beside them so play and upload stay in reach.
-   (The controls flow in newspaper columns, which need room to grow downwards.) */
-.layout.fit .designer-body { flex: 1; min-height: 0; height: 100%; overflow-y: auto; overscroll-behavior: contain; }
-/* The preview column never runs past the bottom of the screen: the space above it is the top
-   bar, the page padding and the module's and designer's headers (about 177 px). */
-.layout.fit .designer-output { position: sticky; top: 0; max-height: calc(100dvh - var(--topbar-height, 64px) - 177px);
-                               overflow-y: auto; padding-right: 4px; }
+/* Sounds: the controls and the preview each scroll on their own, so play and upload stay in
+   reach. (The controls flow in newspaper columns, which need room to grow downwards.) */
+.layout.fit #designer-page-design:not([hidden]) { display: flex; overflow: hidden; }
+.layout.fit .designer-body { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; overflow: hidden; }
+.layout.fit .design-controls-scroll, .layout.fit .designer-output { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.layout.fit .designer-output { position: static; padding-right: 4px; }
 .layout.fit .designer-output > * { flex: none; }
 
-/* Device: packs and the sample list scroll inside their modules. */
-.layout.fit [data-module="packs"] .pack-list { flex: 1; min-height: 0; overflow: auto; padding: 2px 6px 6px 2px; }
-.layout.fit .samples-panel .samples-body { flex: 1; min-height: 0; }
+/* Device: the sample list fills its half of the library. */
 .layout.fit .samples-panel .sample-list { max-height: none; height: 100%; }
-.layout.fit .pattern-filter { flex: none; }
+.layout.fit [data-module="packs"] .pack-list { padding: 2px 6px 6px 2px; }
 .layout.fit .device-panel .module-parts > .hint { display: none; }
 /* Device: the pads and packs row gets more of the height than the sample library. */
 .layout.fit[data-view="device"] { grid-template-rows: minmax(0, 1.3fr) minmax(0, 1fr); }
 .layout.fit .pad-map-cell { min-height: 44px; }
 .layout.fit .pad-grid { margin: 4px 0 8px; }
-.layout.fit [data-module="pads"] { overflow: hidden; }
-.layout.fit [data-module="pads"] .fit-box { flex: 1; min-height: 0; overflow: hidden; }
+

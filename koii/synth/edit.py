@@ -95,10 +95,15 @@ def to_device_rate(audio: np.ndarray, rate: int) -> np.ndarray:
     return resample_poly(audio, up, down, axis=-1).astype(np.float32)
 
 
+def to_pcm(audio: np.ndarray) -> bytes:
+    """(channels, frames) audio in -1…1 as interleaved 16-bit little-endian PCM, as the device stores it."""
+    return (np.round(np.clip(audio, -1, 1).T * 32767).astype("<i2")).tobytes()
+
+
 def wav_bytes(audio: np.ndarray, rate: int = DEVICE_RATE) -> bytes:
     """A 16-bit WAV file, for previews and the sources store."""
     audio = audio if audio.ndim == 2 else audio[np.newaxis, :]
-    pcm = (np.round(np.clip(audio, -1, 1).T * 32767).astype("<i2")).tobytes()
+    pcm = to_pcm(audio)
     out = io.BytesIO()
     with wave.open(out, "wb") as file:
         file.setnchannels(audio.shape[0])

@@ -5,14 +5,12 @@
 // this browser only.
 //
 // On a big enough window each view is one screen (fit mode): modules share the height in
-// rows (data-rows lets one span two) and scroll inside themselves, and [data-fit-scale]
-// parts (the device simulator) are scaled down to fit. Otherwise, modules sit on a
+// rows, each module's [data-grow] part takes the height left and scrolls (see style.css), and
+// [data-fit-scale] parts (the device simulator, the pad map) are scaled down to fit. Otherwise, modules sit on a
 // 12-column grid of 4 px rows. Each module spans as many rows as it is
 // tall, so modules of different heights pack together without leaving gaps under the
-// shorter ones. A module marked data-fill (the log) also stretches down to line up with
-// the bottom of the modules beside it, and its [data-grow] part scrolls inside.
+// shorter ones.
 
-const STORAGE_KEY = "koii.layout.v1";
 const COLUMNS = 12;
 const ROW_UNIT_PX = 4;
 const MIN_SPAN = 2;
@@ -26,8 +24,6 @@ const SPLIT_FROM_PX = 1100;  // two-column bodies stack below this, so splits do
 // height in equal rows and scroll inside themselves. Smaller ones scroll as a page.
 const FIT_FROM_WIDTH_PX = 1100;
 const FIT_FROM_HEIGHT_PX = 600;
-/** Dispatch this on window when a [data-fit-scale] part's content changes size. */
-export const CONTENT_CHANGED = "koii:content-changed";
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -77,7 +73,7 @@ export class LayoutEditor {
    * Each view has its own editor: key is where its layout is kept, and isActive() says whether
    * it's the view on screen (reset and the hidden list only act on that one).
    */
-  constructor({ page, bar, toggle, key = STORAGE_KEY, isActive = () => true }) {
+  constructor({ page, bar, toggle, key, isActive }) {
     this.page = page;
     this.bar = bar;
     this.toggle = toggle;
@@ -91,11 +87,14 @@ export class LayoutEditor {
     }]));
     this.dragging = null;
 
-    const measure = new ResizeObserver((entries) => {
-      entries.forEach((entry) => this._fitRows(entry.target));
-      this._fill();
-      this._scaleToFit();
-    });
+    const measure = new ResizeObserver((entries) => entries.forEach((entry) => this._fitRows(entry.target)));
+    // Scaled parts are watched themselves (and their room), so they refit when their content fills
+    // in or the window changes. A transform doesn't change their layout size, so this can't loop.
+    const fit = new ResizeObserver(() => this._scaleToFit());
+    for (const part of page.querySelectorAll("[data-fit-scale]")) {
+      fit.observe(part);
+      fit.observe(part.parentElement);
+    }
     for (const module of this.modules) {
       this._addModuleTools(module);
       measure.observe(module);
@@ -115,8 +114,6 @@ export class LayoutEditor {
     document.addEventListener("pointerup", () => this._dragEnd());
     document.addEventListener("pointercancel", () => this._dragEnd());
     window.addEventListener("resize", () => this.apply());
-    // Parts that fill in later (the pad map, once read from the device) ask to be measured again.
-    window.addEventListener(CONTENT_CHANGED, () => this._scaleToFit());
     this.apply();
     page.classList.add("packed");
   }
@@ -155,7 +152,6 @@ export class LayoutEditor {
       module.style.setProperty("--span", this._effectiveSpan(settings.span));
       module.style.height = settings.height && !fit ? `${settings.height}px` : "";
       module.classList.toggle("sized", Boolean(settings.height) && !fit);
-      if (fit) module.style.setProperty("--rows", module.dataset.rows || 1);
       module.classList.toggle("collapsed", Boolean(settings.collapsed));
       module.hidden = Boolean(settings.hidden);
       const collapse = module.querySelector(":scope > .module-head .collapse-tool");
@@ -166,54 +162,17 @@ export class LayoutEditor {
     for (const container of this.page.querySelectorAll("[data-regions]")) this._applyRegions(container);
     for (const container of this.page.querySelectorAll("[data-split]")) this._applySplit(container);
     this._renderHidden();
-    this._fill();
     this._scaleToFit();
   }
 
-  /** Scale [data-fit-scale] parts down (never up) so they fit the space their module leaves them. */
+  /** Scale [data-fit-scale] parts down (never up) so they fit the room their module leaves them. */
   _scaleToFit() {
+    const fit = this.page.classList.contains("fit");
     for (const part of this.page.querySelectorAll("[data-fit-scale]")) {
-      part.style.zoom = "";
-      if (!this.page.classList.contains("fit") || part.closest(".module")?.hidden) continue;
       const room = part.parentElement;
-      const FIT_MARGIN = 0.985;   // a little room for rounding, so nothing is clipped
-      const scale = Math.min(1, (room.clientHeight / part.scrollHeight) * FIT_MARGIN, (room.clientWidth / part.scrollWidth) * FIT_MARGIN);
-      if (scale > 0 && scale < 1) part.style.zoom = scale.toFixed(3);
-    }
-  }
-
-  /**
-   * Stretch data-fill modules down to the lowest bottom of the modules beside them that
-   * start no lower, so a short log doesn't leave a gap next to a tall device panel.
-   * Modules given a height by hand, collapsed ones, and narrow screens are left alone.
-   */
-  _fill() {
-    if (this.page.classList.contains("fit")) return;   // every module already fills its row
-    for (const module of this.modules.filter((candidate) => candidate.hasAttribute("data-fill"))) {
-      const settings = this._moduleSettings(module.dataset.module);
-      const allowed = !module.hidden && !settings.height && !settings.collapsed && window.innerWidth >= MEDIUM_PX;
-      const wasFilled = module.classList.contains("filled");
-      if (wasFilled) {
-        module.style.height = "";
-        module.classList.remove("filled");
-      }
-      if (!allowed) {
-        if (wasFilled) this._fitRows(module);
-        continue;
-      }
-      const own = module.getBoundingClientRect();
-      let bottom = own.bottom;
-      for (const other of this.modules) {
-        if (other === module || other.hidden) continue;
-        const rect = other.getBoundingClientRect();
-        const beside = rect.right <= own.left + 1 || rect.left >= own.right - 1;
-        if (beside && rect.top <= own.top + 1) bottom = Math.max(bottom, rect.bottom);
-      }
-      if (bottom > own.bottom + 2) {
-        module.style.height = `${Math.round(bottom - own.top)}px`;
-        module.classList.add("filled");
-      }
-      this._fitRows(module);
+      if (!room.clientHeight) continue;   // the view isn't on screen; it's measured when it is
+      const scale = fit ? Math.min(1, room.clientHeight / part.scrollHeight, room.clientWidth / part.scrollWidth) : 1;
+      part.style.transform = scale < 1 ? `scale(${scale.toFixed(4)})` : "";
     }
   }
 
@@ -236,6 +195,7 @@ export class LayoutEditor {
     this._save();
     this.apply();
   }
+
 
   _effectiveSpan(span) {
     const width = window.innerWidth;

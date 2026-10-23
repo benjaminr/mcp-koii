@@ -3,17 +3,12 @@
 // background; progress arrives as "pack" events.
 
 import { command } from "./api.js";
-import { pressedTwice } from "./design-controls.js";
+import { element, pressedTwice } from "./design-controls.js";
+import { FIRST_EMPTY_PROJECT, PROJECT_COUNT } from "./pads.js";
 
 const $ = (id) => document.getElementById(id);
-const EMPTY_PROJECTS = [9, 8, 7, 6];   // these start empty on the EP-133
-
-function element(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
+// The projects that start empty, highest first: where a new pack goes by default.
+const EMPTY_PROJECTS = Array.from({ length: PROJECT_COUNT - FIRST_EMPTY_PROJECT + 1 }, (_, i) => PROJECT_COUNT - i);
 
 function megabytes(bytes) {
   return `${(bytes / 1e6).toFixed(1)} MB`;
@@ -76,7 +71,9 @@ export class PackList {
     const controls = element("div", "row pack-controls");
     const project = element("select", "pack-project");
     project.setAttribute("aria-label", `Project to install ${pack.title} into`);
-    for (let n = 1; n <= 9; n++) project.append(new Option(`project ${n}${n >= 6 ? " (starts empty)" : ""}`, String(n)));
+    for (let n = 1; n <= PROJECT_COUNT; n++) {
+      project.append(new Option(`project ${n}${n >= FIRST_EMPTY_PROJECT ? " (starts empty)" : ""}`, String(n)));
+    }
     const free = EMPTY_PROJECTS.find((n) => !this.occupied.has(n)) ?? EMPTY_PROJECTS[0];
     project.value = String(pack.installed?.project ?? free);
     const install = element("button", "btn primary small", pack.installed ? "reinstall" : "⤒ install");
@@ -99,12 +96,12 @@ export class PackList {
 
   async install(pack, project, button) {
     if (this.busy) return this.toast("Wait for the pack that's loading to finish.", true);
-    // Ask for a second press before replacing another pack's pads, or pads that may be your own (projects 1–5).
+    // Ask for a second press before replacing another pack's pads, or pads that may be your own.
     const other = this.occupied.get(project);
     if (other && other.name !== pack.name && !pressedTwice(button, `replace ${other.title}?`)) {
       return this.toast(`Project ${project} holds ${other.title}: press again to replace its pads.`);
     }
-    if (!other && project < 6 && !pressedTwice(button, `into ${project}?`)) {
+    if (!other && project < FIRST_EMPTY_PROJECT && !pressedTwice(button, `into ${project}?`)) {
       return this.toast(`Project ${project} may already have sounds on its pads: press again to replace them.`);
     }
     try {

@@ -227,3 +227,12 @@ def test_loops_outside_the_devices_tempo_range_fold_into_it():
     assert device_tempo(200, 2) == {"bpm": 100.0, "bars": 1.0}
     with pytest.raises(DesignError, match="0.25–4 bars"):
         device_tempo(120, 8)
+
+
+def test_a_design_already_on_the_device_is_reused_not_uploaded_again(studio):
+    fake, designer, _ = studio
+    designer.save(presets.preset("organ"), "organ")
+    first = designer.ensure_uploaded("organ")
+    writes = len([r for r in fake.requests if r[:2] == bytes([0x02, 0x00])])
+    assert designer.ensure_uploaded("organ") == first
+    assert len([r for r in fake.requests if r[:2] == bytes([0x02, 0x00])]) == writes

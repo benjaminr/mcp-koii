@@ -3,7 +3,7 @@
 
 import { command, getState, listen, midiUrl, musicxmlUrl } from "./api.js";
 import { BrowserSynth } from "./audio.js";
-import { Device, Keys, noteName, noteToPad } from "./device.js";
+import { Device, Keys, PAD_KEYS, noteName, noteToPad } from "./device.js";
 import { BRUSHES, Grid, renderKey } from "./grid.js";
 import { LayoutEditor } from "./layout.js";
 import { Arranger, makeDraggable } from "./arranger.js";
@@ -21,6 +21,7 @@ const $ = (selector) => document.querySelector(selector);
 const STORAGE_KEY = "koii.editor";
 const KEY_STORAGE_KEY = "koii.grid-key";
 const VIEW_STORAGE_KEY = "koii.view";
+const LIBRARY_REFRESH_MS = 200;
 const VIEWS = ["beat", "song", "sounds", "device"];
 // Space plays what the view is about; Sounds plays the sound being designed (designer.js handles that).
 const VIEW_FOCUS = { beat: "pattern", song: "song" };
@@ -68,8 +69,7 @@ const synth = new BrowserSynth();
 const device = new Device($("#device"), {
   onPad: (label) => {
     auditionPad(label);
-    const connection = state.server?.connection;
-    if (connection?.connected && !connection.simulated) padPanel.select(label);   // and show its settings
+    if (usbConnected()) padPanel.select(label);   // and show its settings
   },
   onTransport: (action) => {
     if (action === "play") return togglePlay();
@@ -343,7 +343,7 @@ function auditionPad(label) {
 
 function padNote(label) {
   const base = { A: 36, B: 48, C: 60, D: 72 }[label[0]];
-  return base + [".", "0", "Enter", "1", "2", "3", "4", "5", "6", "7", "8", "9"].indexOf(label.slice(1));
+  return base + PAD_KEYS.indexOf(label.slice(1));
 }
 
 // -- playback ---------------------------------------------------------------------
@@ -525,8 +525,10 @@ function onEvent(event) {
     case "kit":
       return designer.onEvent(event);
     case "connection":
-    case "library":
-      return refreshState();
+    case "library":   // a pack saving its patterns sends a burst of these: refresh once after it
+      clearTimeout(onEvent.libraryTimer);
+      onEvent.libraryTimer = setTimeout(refreshState, LIBRARY_REFRESH_MS);
+      return undefined;
     default:
       return undefined;
   }
@@ -605,12 +607,18 @@ async function refreshState() {
   renderLibrary();
   arranger.render();
   renderTransport();
-  if (state.server.connection?.connected && !state.server.connection.simulated) {
+  if (usbConnected()) {
     if (state.view === "device") padPanel.loadMap();
     else padPanel.readProject();
   }
   packList.refresh();
   renderTrackOptions();
+}
+
+/** True when koii talks to a real EP-133 over USB (not the browser simulator). */
+function usbConnected() {
+  const connection = state.server?.connection;
+  return Boolean(connection?.connected && !connection.simulated);
 }
 
 function renderConnection() {
@@ -830,7 +838,7 @@ function setView(view) {
   }
   layouts[view]?.show();
   if (VIEW_FOCUS[view]) setFocus(VIEW_FOCUS[view]);
-  if (view === "device" && state.server?.connection?.connected && !state.server.connection.simulated) padPanel.loadMap();
+  if (view === "device" && usbConnected()) padPanel.loadMap();
   if (location.hash !== `#${view}`) history.replaceState(null, "", `#${view}`);
   try {
     localStorage.setItem(VIEW_STORAGE_KEY, view);
@@ -996,9 +1004,9 @@ function bindControls() {
       return event.shiftKey ? redo() : undo();
     }
     if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
-    if (event.code === "Space" && state.view !== "sounds") {
+    if (event.code === "Space") {
       event.preventDefault();
-      return togglePlay();
+      return state.view === "sounds" ? designer.playFromKeyboard() : togglePlay();
     }
     if (event.key === "Escape") return stop();
     if (event.key.toLowerCase() === "l") return setLoop(!state.loop);

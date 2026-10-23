@@ -99,13 +99,13 @@ export class SoundDesigner {
       locks.append(box);
     }
     new ResizeObserver(() => this.draw()).observe($("designer-wave"));
-    document.addEventListener("keydown", (event) => {
-      const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || "");
-      if (event.code === "Space" && !typing && this.visible("design")) {
-        event.preventDefault();
-        this.play();
-      }
-    });
+  }
+
+  /** Space in the Sounds view: play the design if its tab is showing. True if it did. */
+  playFromKeyboard() {
+    if (!this.visible("design")) return false;
+    this.play();
+    return true;
   }
 
   /** True if that designer tab is on screen (its view is showing and it's scrolled into view). */

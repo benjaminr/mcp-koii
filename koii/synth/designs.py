@@ -91,6 +91,10 @@ class DesignStore:
                 entry["slots"] = [s for s in entry.get("slots", []) if s != slot]
             self._write(designs)
 
+    def slots_of(self, name: str) -> List[int]:
+        """The slots this design was uploaded to."""
+        return list(self._read().get(design_key(name), {}).get("slots", []))
+
     def for_slot(self, slot: int) -> Optional[str]:
         for key, entry in self._read().items():
             if slot in entry.get("slots", []):
