@@ -200,7 +200,7 @@ export class Device {
     const ledPair = place(element("div", "ko-label ko-led-pair"), "6 / span 2", 8);
     ledPair.append(led("on"), led("on"));
     place(element("div", "ko-wide orange ko-record", "RECORD"), 6, 9);
-    this.playKey = place(this._actionKey("PLAY", "ko-wide grey", "Play / stop the editor pattern", "play"), 7, 9);
+    this.playKey = place(this._actionKey("PLAY", "ko-wide grey", "Play or stop: plays the pattern editor or the arranger, whichever you used last (Space)", "play"), 7, 9);
     return face;
   }
 

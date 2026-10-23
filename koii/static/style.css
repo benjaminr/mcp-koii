@@ -840,3 +840,19 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
   font-family: var(--num); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
 }
 .layout-bar { order: 11; }
+
+/* -- the transport: what plays, and what's playing ------------------------------------ */
+
+/* A play button turns into stop while its thing plays. */
+.btn.transport-play { min-width: 128px; justify-content: center; }
+.btn.transport-play.playing { background: var(--ink); color: var(--paper); }
+.library-item.playing { background: var(--signal-soft); }
+.library-item.playing .row-play { color: var(--signal); }
+
+/* The module that ▶ and Space play from wears a badge. */
+.module.transport-focus > .module-head::after {
+  content: "▶ space"; order: 1; margin-left: auto;
+  font-family: var(--num); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  background: var(--signal); color: var(--ink); padding: 2px 6px; border-radius: 2px; align-self: center;
+}
+.module.transport-focus > .module-head > .module-tools { order: 2; margin-left: 8px; }

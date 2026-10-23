@@ -268,6 +268,21 @@ def test_playback_reports_notes_and_passes(studio):
     assert seen[-1]["type"] == "stopped"
 
 
+def test_playing_now_switches_straight_away_instead_of_waiting_for_the_loop(studio, port):
+    studio.connect()
+    studio.play("@bpm 30\nkick: x---", loop=True)    # one pass lasts 8 s
+    time.sleep(0.05)
+    reply = studio.play("@bpm 300\nsnare: x...", loop=True, now=True)
+    assert not reply.startswith("queued")
+    time.sleep(0.3)
+    assert 39 in [m.note for m in note_ons(port)]   # the snare started long before the kick's pass would end
+    assert "looping" in studio.player.status
+    studio.stop()
+    ons = sum(1 for _, m in port.messages if m.type == "note_on")
+    offs = sum(1 for _, m in port.messages if m.type == "note_off")
+    assert ons == offs  # the held kick was released when it was cut off
+
+
 def test_audition_does_not_interrupt_a_loop(studio, port):
     studio.connect()
     studio.play("@bpm 300\nkick: x...", loop=True)

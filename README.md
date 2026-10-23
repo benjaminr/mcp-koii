@@ -64,8 +64,13 @@ pads you press on the device.
     explains every symbol and colour.
   - **Text:** the notation itself, checked as you type, with clickable errors.
   - **Notation:** sheet music, with a drum staff and a bass or treble staff for pitched tracks.
-- **Loop building:** Play, Loop and Stop; turn on **Live edit** and every change switches
-  in at the end of the current pass. Undo and redo (⌘Z / ⇧⌘Z); Space plays and stops.
+- **Play and stop:** every ▶ toggles: press it again (or Space) to stop. The top bar's ▶,
+  Space and the device's PLAY play whichever you used last, the pattern editor or the
+  arranger; the top button says which, and that module wears a **▶ space** badge. The
+  arranger's ▶ and each library row's ▶ play their own thing and show ■ while it plays.
+  Pressing play switches at once; one **loop** setting covers everything. Turn on **Live
+  edit** and every change to a looping pattern switches in at the end of the current pass.
+  Undo and redo (⌘Z / ⇧⌘Z).
 - **Library and arranger:** saved patterns and songs, to open, play, loop and delete,
   beside a song grid. Rows are lanes (one per pattern) and columns are sections: light
   several cells in a column to layer patterns, add columns to play them in turn, and set

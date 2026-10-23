@@ -37,6 +37,9 @@ const state = {
   live: false,
   editorPlaying: false,  // the last thing played came from the editor
   arrangerPlaying: false,  // the arranger's song is what's playing, so it shows the playhead
+  playingName: null,       // a library pattern played from its row
+  focus: "pattern",        // what ▶ and Space play: "pattern" (the editor) or "song" (the arranger)
+  requested: null,         // the last play this page asked for: { label, mark }; passes are matched to it
   activity: [],
 };
 
@@ -57,7 +60,7 @@ const synth = new BrowserSynth();
 const device = new Device($("#device"), {
   onPad: auditionPad,
   onTransport: (action) => {
-    if (action === "play") return state.pass ? stop() : playEditor();
+    if (action === "play") return togglePlay();
     const delta = action === "plus" ? 1 : -1;
     return editModel((m) => {
       const bpm = m.bpm + delta;
@@ -104,7 +107,7 @@ const arranger = new Arranger($("#arranger"), {
     $("#arrangement").value = text;
     previewArrangement();
   },
-  onAudition: (name) => playName(name, false),
+  onAudition: (name) => playName(name),
 });
 const sound = new LiveStrip($("#strip-canvas"), (status) => {
   $("#strip-toggle").setAttribute("aria-pressed", String(status.listening));
@@ -331,31 +334,115 @@ function padNote(label) {
 
 // -- playback ---------------------------------------------------------------------
 
-async function playEditor() {
-  if (!editor.text.trim()) return;
-  const wasEditor = state.editorPlaying;
-  state.editorPlaying = true; // set first: the first pass event can arrive before the reply
+// One rule for every play control: if anything is playing, it stops; otherwise it plays.
+// The top bar's ▶, Space and the device's PLAY play what has focus: the pattern editor or
+// the arranger, whichever was clicked last. The arranger's ▶ and each library row's ▶ play
+// their own thing, and turn into ■ while it plays.
+
+/** What's playing: "pattern" (the editor), "song" (the arranger), a library name, "other", or null. */
+function playingKind() {
+  if (!state.pass) return null;
+  if (state.editorPlaying) return "pattern";
+  if (state.arrangerPlaying) return "song";
+  return state.playingName ? `name:${state.playingName}` : "other";
+}
+
+function togglePlay() {
+  if (state.pass) return stop();
+  return state.focus === "song" ? playArrangement() : playEditor();
+}
+
+/**
+ * Play something from a control on this page. `now` stops whatever was playing first, so
+ * the control acts at once (live edit, not this, is what switches seamlessly at the end of
+ * a loop). What's playing is then learnt from the server's own pass events, matched against
+ * this request by label, so the order replies and events arrive in doesn't matter.
+ */
+async function startPlaying(what, mark, loop = state.loop) {
+  const label = mark === "pattern" ? "pattern" : what.trim();
+  state.requested = { label, mark };
   try {
-    await run("play", { what: editor.text, loop: state.loop });
+    await run("play", { what, loop, now: true });
   } catch {
-    state.editorPlaying = wasEditor; // run() already showed the error
+    state.requested = null;   // run() already showed the error
   }
 }
 
-async function playName(name, loop) {
-  const wasEditor = state.editorPlaying;
-  state.editorPlaying = false;
-  state.arrangerPlaying = false;
-  try {
-    await run("play", { what: name, loop });
-  } catch {
-    state.editorPlaying = wasEditor;
-  }
+/** Mark what a pass is playing: the page's own request if the label matches, else something else (e.g. Claude). */
+function markPass(event) {
+  const mark = state.requested?.label === event.label ? state.requested.mark : null;
+  state.editorPlaying = mark === "pattern";
+  state.arrangerPlaying = mark === "song";
+  state.playingName = mark?.startsWith("name:") ? mark.slice(5) : null;
+}
+
+async function playEditor() {
+  if (!editor.text.trim()) return toast("The pattern is empty: paint some steps first.", true);
+  setFocus("pattern");
+  await startPlaying(editor.text, "pattern");
+}
+
+async function playArrangement() {
+  const arrangement = $("#arrangement").value.trim();
+  if (!arrangement) return toast("Add a pattern to the arranger first: drag one in, or press + on it.", true);
+  setFocus("song");
+  await startPlaying(arrangement, "song");
+}
+
+/** A library pattern's ▶: plays it, or stops it if it's what's playing. */
+function toggleName(name) {
+  if (playingKind() === `name:${name}`) return stop();
+  return startPlaying(name, `name:${name}`);
+}
+
+/** The arranger's ▶: plays the song, or stops it if it's what's playing. */
+function toggleArrangement() {
+  if (playingKind() === "song") return stop();
+  return playArrangement();
 }
 
 async function stop() {
-  state.editorPlaying = false;
+  state.requested = null;
   await run("stop", {}).catch(() => {});
+}
+
+/** Auditions (a lane name clicked in the arranger) play once and don't take the playhead. */
+function playName(name) {
+  return startPlaying(name, `name:${name}`, false);
+}
+
+function setFocus(focus) {
+  if (state.focus === focus) return;
+  state.focus = focus;
+  renderTransport();
+}
+
+/** Every play control shows what it would do now. */
+function renderTransport() {
+  const kind = playingKind();
+  const focusLabel = state.focus === "song" ? "song" : "pattern";
+  const top = $("#play-btn");
+  top.textContent = kind ? "■ stop" : `▶ play ${focusLabel}`;
+  top.title = kind ? "Stop (Space)" : `Play the ${state.focus === "song" ? "arranger's song" : "editor pattern"} (Space)`;
+  top.classList.toggle("playing", Boolean(kind));
+  const song = $("#arr-play");
+  song.textContent = kind === "song" ? "■ stop" : "▶ play song";
+  song.classList.toggle("playing", kind === "song");
+  for (const row of document.querySelectorAll("#library .library-item[data-name]")) {
+    const play = row.querySelector(".row-play");
+    const playing = kind === `name:${row.dataset.name}` || (row.dataset.kind === "song" && kind === "song" &&
+      $("#song-name").value.trim() === row.dataset.name);
+    row.classList.toggle("playing", playing);
+    if (play) {
+      play.textContent = playing ? "■" : "▶";
+      play.title = playing ? "Stop" : (row.dataset.kind === "song" ? "Open in the arranger and play" : "Play");
+    }
+  }
+  for (const module of document.querySelectorAll("[data-module]")) {
+    const focused = (module.dataset.module === "pattern" && state.focus === "pattern") ||
+      (module.dataset.module === "library" && state.focus === "song");
+    module.classList.toggle("transport-focus", focused);
+  }
 }
 
 function playingSource() {
@@ -372,9 +459,10 @@ function scheduleLive() {
   }, LIVE_DELAY_MS);
 }
 
+/** One loop setting for everything that plays; it takes effect from the next ▶. */
 function setLoop(on) {
   state.loop = on;
-  $("#loop-btn").setAttribute("aria-pressed", String(on));
+  for (const button of [$("#loop-btn"), $("#arr-loop")]) button.setAttribute("aria-pressed", String(on));
 }
 
 // -- live events ----------------------------------------------------------------
@@ -386,8 +474,10 @@ function onEvent(event) {
     case "pass":
       state.pass = event;
       state.queued = null;
+      markPass(event);
       device.setPlaying(true, event.loop ? "LOOP" : "PLAY");
       renderNowPlaying();
+      renderTransport();
       return;
     case "queued":
       state.queued = event;
@@ -404,8 +494,11 @@ function onEvent(event) {
       grid.setPlayhead(null);
       notation.setPlayhead(null);
       arranger.setPlayhead(null);
+      state.editorPlaying = false;
       state.arrangerPlaying = false;
+      state.playingName = null;
       renderNowPlaying();
+      renderTransport();
       return;
     case "activity": return addActivity(event);
     case "backup": return samples.onBackup(event);
@@ -493,6 +586,7 @@ async function refreshState() {
   renderConnection();
   renderLibrary();
   arranger.render();
+  renderTransport();
   renderTrackOptions();
 }
 
@@ -542,6 +636,8 @@ function renderLibrary() {
   }
   for (const pattern of patterns) {
     const row = element("div", "library-item");
+    row.dataset.name = pattern.name;
+    row.dataset.kind = "pattern";
     makeDraggable(row, pattern.name);
     if (pattern.name === editor.name) row.classList.add("current");
     row.append(element("span", "library-kind", "pat"));
@@ -549,8 +645,7 @@ function renderLibrary() {
     const bars = pattern.beats ? `${+(pattern.beats / 4).toFixed(2)} bar${pattern.beats === 4 ? "" : "s"}` : "error";
     row.append(name, element("span", "library-meta", pattern.error ? "doesn't parse" : `${bars} · ${pattern.bpm}`));
     row.append(
-      button("icon", "▶", "Play", () => playName(pattern.name, false)),
-      button("icon", "⟳", "Loop", () => playName(pattern.name, true)),
+      button("icon row-play", "▶", "Play", () => toggleName(pattern.name)),
       button("icon", "+", "Add to the song as a new section", () => arranger.addSection([pattern.name])),
       deleteButton(pattern.name),
     );
@@ -558,13 +653,17 @@ function renderLibrary() {
   }
   for (const song of songs) {
     const row = element("div", "library-item");
+    row.dataset.name = song.name;
+    row.dataset.kind = "song";
     makeDraggable(row, song.name);
     row.append(element("span", "library-kind", "song"));
     row.append(button("library-name", song.name, `Open in the arranger: ${song.arrangement}`, () => openSong(song)));
     row.append(element("span", "library-meta", song.bpm ? `${song.bpm}` : ""));
     row.append(
-      button("icon", "▶", "Open and play", () => openSong(song).then(() => playArrangement(false))),
-      button("icon", "⟳", "Open and loop", () => openSong(song).then(() => playArrangement(true))),
+      button("icon row-play", "▶", "Open in the arranger and play", () => {
+        if (playingKind() === "song" && $("#song-name").value.trim() === song.name) return stop();
+        return openSong(song).then(playArrangement);
+      }),
       deleteButton(song.name),
     );
     box.append(row);
@@ -687,7 +786,7 @@ function renderBrushes() {
 }
 
 function bindControls() {
-  $("#play-btn").addEventListener("click", playEditor);
+  $("#play-btn").addEventListener("click", togglePlay);
   $("#stop-btn").addEventListener("click", stop);
   $("#loop-btn").addEventListener("click", () => setLoop(!state.loop));
   $("#live-toggle").addEventListener("change", (event) => {
@@ -766,8 +865,16 @@ function bindControls() {
     arranger.clear();
     $("#arrangement-issues").replaceChildren();
   });
-  $("#arr-play").addEventListener("click", () => playArrangement(false));
-  $("#arr-loop").addEventListener("click", () => playArrangement(true));
+  $("#arr-play").addEventListener("click", toggleArrangement);
+  $("#arr-loop").addEventListener("click", () => setLoop(!state.loop));
+  // Whatever was clicked last, the pattern editor or the arranger, is what ▶ and Space play.
+  const focusFrom = (event) => {
+    const module = event.target.closest?.("[data-module]")?.dataset.module;
+    if (module === "pattern") setFocus("pattern");
+    else if (module === "library") setFocus("song");
+  };
+  document.addEventListener("pointerdown", focusFrom, true);
+  document.addEventListener("focusin", focusFrom);
   $("#song-save").addEventListener("click", async () => {
     const name = $("#song-name").value.trim();
     const arrangement = $("#arrangement").value.trim();
@@ -785,7 +892,7 @@ function bindControls() {
     if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
     if (event.code === "Space") {
       event.preventDefault();
-      return state.pass ? stop() : playEditor();
+      return togglePlay();
     }
     if (event.key === "Escape") return stop();
     if (event.key.toLowerCase() === "l") return setLoop(!state.loop);
@@ -848,13 +955,6 @@ async function startListening() {
   }
 }
 
-async function playArrangement(loop) {
-  const arrangement = $("#arrangement").value.trim();
-  if (!arrangement) return toast("Add a pattern to the arranger first: drag one in, or press + on it.", true);
-  await playName(arrangement, loop);
-  state.arrangerPlaying = true;
-}
-
 // -- start ------------------------------------------------------------------------
 
 /** The grid's key: open or closed, remembered in this browser. */
@@ -891,6 +991,7 @@ function trackTopBarHeight() {
 
 function start() {
   trackTopBarHeight();
+  renderTransport();
   new LayoutEditor({ page: $(".layout"), bar: $("#layout-bar"), toggle: $("#layout-btn") });
   setupKey();
   renderBrushes();

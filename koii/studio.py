@@ -185,11 +185,18 @@ class Studio:
     def check(self, text: str) -> str:
         return "OK\n" + render_pattern(self.library.parse(text))
 
-    def play(self, what: str, repeat: int = 1, loop: bool = False, bpm: Optional[int] = None) -> str:
+    def play(self, what: str, repeat: int = 1, loop: bool = False, bpm: Optional[int] = None,
+             now: bool = False) -> str:
+        """
+        Play it. While something loops, new material normally waits for the end of the
+        current pass (a seamless switch); `now` stops what's playing and starts at once.
+        """
         if not 1 <= repeat <= 999:
             raise ValueError("repeat must be 1-999")
         sections, label, pattern_summary = self._sections(what, bpm)  # validate before needing a device
         self._require_port()
+        if now:
+            self.player.stop()
         played = sections * repeat
         message = self.player.play(played, self.channel, loop, label, info=self.playback_info(played))
         return "\n".join(part for part in (message, pattern_summary, _describe_sections(played)) if part)

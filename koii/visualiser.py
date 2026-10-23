@@ -131,7 +131,7 @@ def _commands(studio: Studio) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
         "check": lambda b: studio.check_pattern(required(b, "text")),
         "arrangement": lambda b: studio.arrangement_info(required(b, "arrangement"), b.get("bpm")),
         "play": lambda b: studio.play(required(b, "what"), int(b.get("repeat", 1)), bool(b.get("loop", False)),
-                                      b.get("bpm")),
+                                      b.get("bpm"), bool(b.get("now", False))),
         "stop": lambda b: studio.stop(),
         "audition": lambda b: studio.audition(required(b, "sound"), int(b.get("velocity", 100)), b.get("note")),
         "save_pattern": lambda b: studio.save_pattern(required(b, "name"), required(b, "text")),
