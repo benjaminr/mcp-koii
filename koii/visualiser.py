@@ -47,12 +47,19 @@ _CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; 
 _MAX_BODY_BYTES = 24_000_000  # room for a minute of 48 kHz stereo recording, base64-encoded
 
 
+class _PageServer(ThreadingHTTPServer):
+    # The page loads its scripts all at once. The default queue of 5 waiting connections
+    # overflows, and macOS then resets the extra ones, so some scripts fail to load.
+    request_queue_size = 64
+    daemon_threads = True
+
+
 class Visualiser:
     def __init__(self, studio: Studio, host: str = "127.0.0.1", port: int = DEFAULT_PORT):
         self.studio = studio
         self.host = host
         self.port = port
-        self._server: Optional[ThreadingHTTPServer] = None
+        self._server: Optional[_PageServer] = None
         self._thread: Optional[threading.Thread] = None
         self._stopping = threading.Event()
 
@@ -68,13 +75,12 @@ class Visualiser:
         last_error: Optional[OSError] = None
         for port in range(self.port, self.port + PORT_ATTEMPTS):
             try:
-                self._server = ThreadingHTTPServer((self.host, port), handler)
+                self._server = _PageServer((self.host, port), handler)
                 break
             except OSError as e:
                 last_error = e
         if self._server is None:
             raise OSError(f"no free port for the visualiser in {self.port}-{self.port + PORT_ATTEMPTS - 1}") from last_error
-        self._server.daemon_threads = True
         self._stopping.clear()
         self._thread = threading.Thread(target=self._server.serve_forever, name="koii-visualiser", daemon=True)
         self._thread.start()
@@ -411,16 +417,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="KOII visualiser for the EP-133 K.O. II")
     parser.add_argument("--port", type=int, default=int(os.environ.get("KOII_WEB_PORT", DEFAULT_PORT)))
     parser.add_argument("--no-browser", action="store_true", help="don't open a browser window")
+    parser.add_argument("--no-connect", action="store_true", help="don't connect to the EP-133 on start")
     options = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     studio = Studio()
     visualiser = Visualiser(studio, port=options.port)
     url = visualiser.start()
     print(f"KOII visualiser at {url} (Ctrl+C to stop)", flush=True)
-    try:
-        print(studio.connect(), flush=True)
-    except NotConnected as e:   # no device yet; it can still be connected from the page
-        print(f"not connected: {e}", flush=True)
+    if not options.no_connect:
+        try:
+            print(studio.connect(), flush=True)
+        except NotConnected as e:   # no device yet; it can still be connected from the page
+            print(f"not connected: {e}", flush=True)
     if not options.no_browser:
         open_in_browser(url)
     try:

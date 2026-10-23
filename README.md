@@ -60,7 +60,8 @@ pads you press on the device.
   device (blue); the display shows bar and beat. Click a pad to hear it.
 - **Pattern editor** with three views of the same pattern:
   - **Grid:** a step sequencer. Paint with brushes (hit, accent, ghost, levels 1–9, hold,
-    rest); shift-drag holds, right-click erases. Add tracks and bars, type basslines.
+    rest); shift-drag holds, right-click erases. Add tracks and bars, type basslines. **? key**
+    explains every symbol and colour.
   - **Text:** the notation itself, checked as you type, with clickable errors.
   - **Notation:** sheet music, with a drum staff and a bass or treble staff for pitched tracks.
 - **Loop building:** Play, Loop and Stop; turn on **Live edit** and every change switches
@@ -95,10 +96,15 @@ pads you press on the device.
     play mode, so pads play in tune and sustain. Uploads need a complete backup, never
     touch sounds koii didn't upload, and are checked against the device's own checksum.
     See **[SOUND_DESIGN.md](SOUND_DESIGN.md)**.
+- **Your own layout:** press **layout** to move modules (drag a header), resize them (drag
+  the corner) and hide them; reorder or hide the parts inside them; and drag the line
+  between two-column areas. **▾** collapses a module at any time. The layout is kept in
+  this browser; **reset** goes back to the default.
 - **No device?** Choose *Browser simulator* (top right) and the page plays synthesised
   drums and bass itself.
 
-To run it without Claude: `python -m koii.visualiser` (or `koii-visualiser`). Settings:
+To run it without Claude: `python -m koii.visualiser` (or `koii-visualiser`). It connects to
+the EP-133 on start if it's plugged in (`--no-connect` to skip that). Settings:
 `KOII_WEB_PORT` (default 8133; the next free port is used if it's taken) and `KOII_WEB=off`
 to disable it. It only listens on localhost and ignores commands from other websites.
 

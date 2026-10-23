@@ -4,7 +4,8 @@
 import { command, getState, listen, midiUrl, musicxmlUrl } from "./api.js";
 import { BrowserSynth } from "./audio.js";
 import { Device, Keys, noteName, noteToPad } from "./device.js";
-import { BRUSHES, Grid } from "./grid.js";
+import { BRUSHES, Grid, renderKey } from "./grid.js";
+import { LayoutEditor } from "./layout.js";
 import * as model from "./model.js";
 import { Notation } from "./notation.js";
 import { roleForName, roleForPad, roleForTrack } from "./roles.js";
@@ -14,6 +15,7 @@ import { SoundScope } from "./sound.js";
 
 const $ = (selector) => document.querySelector(selector);
 const STORAGE_KEY = "koii.editor";
+const KEY_STORAGE_KEY = "koii.grid-key";
 const CHECK_DELAY_MS = 250;
 const LIVE_DELAY_MS = 300;
 const ARRANGEMENT_DELAY_MS = 350;
@@ -834,7 +836,33 @@ async function playArrangement(loop) {
 
 // -- start ------------------------------------------------------------------------
 
+/** The grid's key: open or closed, remembered in this browser. */
+function setupKey() {
+  const key = $("#grid-key");
+  const toggle = $("#key-btn");
+  renderKey(key);
+  const show = (open) => {
+    key.hidden = !open;
+    toggle.setAttribute("aria-pressed", String(open));
+    try {
+      localStorage.setItem(KEY_STORAGE_KEY, open ? "open" : "closed");
+    } catch {
+      // Storage can be refused in private windows; the key still opens and closes.
+    }
+  };
+  let remembered = null;
+  try {
+    remembered = localStorage.getItem(KEY_STORAGE_KEY);
+  } catch {
+    remembered = null;
+  }
+  show(remembered !== "closed");   // open until someone closes it
+  toggle.addEventListener("click", () => show(key.hidden));
+}
+
 function start() {
+  new LayoutEditor({ page: $(".layout"), bar: $("#layout-bar"), toggle: $("#layout-btn") });
+  setupKey();
   renderBrushes();
   bindControls();
   const draft = loadDraft();

@@ -219,6 +219,55 @@ export class Grid {
   }
 }
 
+// -- the key ----------------------------------------------------------------------
+
+/** A sample cell drawn exactly as the grid draws that symbol. */
+function sampleCell(symbol, extraClass = "") {
+  const cell = element("div", "cell");
+  Grid.prototype._paintCell(cell, { symbols: [symbol] }, 0);
+  if (extraClass) cell.classList.add(extraClass);
+  return cell;
+}
+
+const KEY_SYMBOLS = [
+  { cells: () => [sampleCell("x")], brush: "x", name: "hit", detail: "velocity 100" },
+  { cells: () => [sampleCell("X")], brush: "X", name: "accent", detail: "velocity 127, the loudest" },
+  { cells: () => [sampleCell("o")], brush: "o", name: "ghost", detail: "velocity 50, a quiet note" },
+  { cells: () => ["1", "5", "9"].map((n) => sampleCell(n)), brush: "1–9", name: "level",
+    detail: `velocity ${velocityOf("1")}–${velocityOf("9")}; darker is louder` },
+  { cells: () => [sampleCell("x"), sampleCell("-")], brush: "–", name: "hold", detail: "keeps the note before it sounding" },
+  { cells: () => [sampleCell(".")], brush: "·", name: "rest", detail: "silence" },
+  { cells: () => [sampleCell("x", "repeat"), sampleCell(".", "repeat")], brush: "", name: "repeat",
+    detail: "faded: a shorter track playing again. Painting one copies the track out" },
+  { cells: () => [sampleCell(".", "playhead")], brush: "", name: "playhead", detail: "the step playing now" },
+];
+
+const KEY_GESTURES = [
+  "click or drag paints with the brush",
+  "the cycle brush steps rest → hit → accent → ghost",
+  "shift-drag holds",
+  "right-click or alt-click erases",
+  "click a track name to hear it, double-click to rename",
+  "small gaps split beats, wide gaps split bars (1.3 is bar 1, beat 3)",
+];
+
+/** Explain the grid's symbols and colours, using cells drawn the same way as the grid's. */
+export function renderKey(container) {
+  container.replaceChildren();
+  const symbols = element("ul", "key-symbols");
+  for (const entry of KEY_SYMBOLS) {
+    const item = element("li", "key-entry");
+    const cells = element("span", "key-cells");
+    cells.append(...entry.cells());
+    item.append(cells, entry.brush ? element("code", "key-brush", entry.brush) : element("span"));
+    const text = element("span", "key-detail");
+    text.append(element("b", "", entry.name), ` ${entry.detail}`);
+    item.append(text);
+    symbols.append(item);
+  }
+  container.append(symbols, element("p", "key-gestures", KEY_GESTURES.join(" · ")));
+}
+
 export function describeTarget(target) {
   if (!target) return "?";
   if (target.kind === "channel") return `${target.label} · pitched`;

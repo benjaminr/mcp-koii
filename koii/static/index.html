@@ -41,20 +41,30 @@
       <div id="connection-menu" class="menu" role="menu" hidden></div>
     </div>
     <button id="sound-btn" class="btn toggle" type="button" title="Play sounds in this browser (simulator voices)"><span class="led"></span>browser sound</button>
+    <button id="layout-btn" class="btn toggle" type="button" aria-pressed="false" title="Move, resize and hide the modules"><span class="led"></span>layout</button>
+    <div id="layout-bar" class="layout-bar" hidden>
+      <span class="layout-bar-title">editing the layout</span>
+      <span class="layout-bar-help">drag a header to move it · drag the corner to resize (double-click it to fit) · drag the dotted line to split · <b>▾</b> collapses</span>
+      <span class="layout-hidden" data-layout="hidden" hidden></span>
+      <button class="btn ghost small" type="button" data-layout="reset" title="Back to the default layout">reset</button>
+      <button class="btn small" type="button" data-layout="done">done</button>
+    </div>
   </header>
 
   <main class="layout">
-    <section class="module device-panel" aria-label="Device">
+    <section class="module device-panel" data-module="device" data-span="4" aria-label="Device">
       <h2 class="module-head"><span class="module-index">01</span>device</h2>
-      <div id="device"></div>
-      <div class="keys-wrap">
-        <div class="caption">pitched notes · midi channels</div>
-        <div id="keys"></div>
+      <div class="module-parts" data-regions="device">
+        <div data-region="device" data-region-label="device"><div id="device"></div></div>
+        <div class="keys-wrap" data-region="keys" data-region-label="keyboard">
+          <div class="caption">pitched notes · midi channels</div>
+          <div id="keys"></div>
+        </div>
+        <p class="hint" data-region="hint" data-region-label="hint">Pads light <b class="swatch play"></b> for notes sent and <b class="swatch press"></b> when you press them on the device. Click a pad to hear it.</p>
       </div>
-      <p class="hint">Pads light <b class="swatch play"></b> for notes sent and <b class="swatch press"></b> when you press them on the device. Click a pad to hear it.</p>
     </section>
 
-    <section class="module editor-panel" aria-label="Pattern editor">
+    <section class="module editor-panel" data-module="pattern" data-span="5" aria-label="Pattern editor">
       <h2 class="module-head"><span class="module-index">02</span>pattern</h2>
       <div class="editor-head">
         <input id="pattern-name" class="name-input" placeholder="untitled" spellcheck="false" aria-label="Pattern name">
@@ -87,13 +97,16 @@
         </span>
       </div>
 
-      <div id="tab-grid" class="tab-body">
-        <div class="brushes" id="brushes" role="toolbar" aria-label="Brush"></div>
-        <div id="grid" class="grid-wrap"></div>
-        <div class="add-track">
+      <div id="tab-grid" class="tab-body" data-regions="pattern">
+        <div class="brush-row" data-region="brushes" data-region-label="brushes">
+          <div class="brushes" id="brushes" role="toolbar" aria-label="Brush"></div>
+          <button id="key-btn" class="btn ghost small key-btn" type="button" aria-pressed="false" aria-controls="grid-key" title="What the symbols and colours mean">? key</button>
+        </div>
+        <div data-region="key" data-region-label="key"><div id="grid-key" class="grid-key" hidden></div></div>
+        <div data-region="grid" data-region-label="grid"><div id="grid" class="grid-wrap"></div></div>
+        <div class="add-track" data-region="add" data-region-label="add track">
           <select id="add-track-select" aria-label="Sound to add"></select>
           <button id="add-track-btn" class="btn" type="button">+ track</button>
-          <span class="hint">shift-drag holds · right-click erases · faded steps are repeats</span>
         </div>
       </div>
       <div id="tab-text" class="tab-body" hidden>
@@ -108,54 +121,29 @@
       <div id="issues" class="issues" aria-live="polite"></div>
     </section>
 
-    <aside class="side" aria-label="Library, arrangement and activity">
-      <section class="module">
-        <h2 class="module-head"><span class="module-index">03</span>library</h2>
-        <div id="library" class="library"></div>
-      </section>
-      <section class="module">
-        <h2 class="module-head"><span class="module-index">04</span>arrange</h2>
-        <textarea id="arrangement" class="arrangement" placeholder="intro x2, verse x4, verse+bass x4, chorus x8" spellcheck="false"></textarea>
-        <div class="row">
-          <button id="arr-play" class="btn" type="button">▶ play</button>
-          <button id="arr-loop" class="btn ghost" type="button">loop</button>
-          <input id="song-name" class="name-input small" placeholder="song name" spellcheck="false" aria-label="Song name">
-          <button id="song-save" class="btn ghost" type="button">save song</button>
-        </div>
-        <div id="arrangement-issues" class="issues small"></div>
-        <div id="timeline" class="timeline"></div>
-      </section>
-      <section class="module">
-        <h2 class="module-head"><span class="module-index">05</span>log</h2>
-        <div id="activity" class="activity"></div>
-      </section>
-    </aside>
-
-    <section class="module sound-panel" aria-label="Sound">
-      <h2 class="module-head"><span class="module-index">06</span>sound</h2>
-      <div class="sound-head">
-        <button id="listen-btn" class="btn toggle" type="button" aria-pressed="false" title="Analyse the sound (asks once for permission to use the EP-133 audio input)"><span class="led"></span>listen</button>
-        <label><span class="setting-name">source</span>
-          <select id="sound-source">
-            <option value="device">EP-133 audio (USB)</option>
-            <option value="simulator">browser simulator voices</option>
-          </select>
-        </label>
-        <span id="sound-status" class="sound-status">not listening</span>
-        <span id="sound-readout" class="sound-readout num"></span>
+    <section class="module" data-module="library" data-span="3" aria-label="Library">
+      <h2 class="module-head"><span class="module-index">03</span>library</h2>
+      <div id="library" class="library"></div>
+    </section>
+    <section class="module" data-module="arrange" data-span="3" aria-label="Arrangement">
+      <h2 class="module-head"><span class="module-index">04</span>arrange</h2>
+      <textarea id="arrangement" class="arrangement" placeholder="intro x2, verse x4, verse+bass x4, chorus x8" spellcheck="false"></textarea>
+      <div class="row">
+        <button id="arr-play" class="btn" type="button">▶ play</button>
+        <button id="arr-loop" class="btn ghost" type="button">loop</button>
+        <input id="song-name" class="name-input small" placeholder="song name" spellcheck="false" aria-label="Song name">
+        <button id="song-save" class="btn ghost" type="button">save song</button>
       </div>
-      <div class="sound-grid">
-        <figure class="screen-panel"><figcaption>scope</figcaption><canvas id="scope-canvas"></canvas></figure>
-        <figure class="screen-panel spectrum"><figcaption>spectrum</figcaption><canvas id="spectrum-canvas"></canvas></figure>
-        <figure class="screen-panel"><figcaption>levels · dBFS</figcaption><canvas id="meters-canvas"></canvas></figure>
-        <figure class="screen-panel"><figcaption>balance</figcaption><canvas id="balance-canvas"></canvas></figure>
-        <figure class="screen-panel wide"><figcaption>spectrogram · beats and bars from the playhead</figcaption><canvas id="spectrogram-canvas"></canvas></figure>
-      </div>
-      <p class="hint">Listening only: nothing is played back. The EP-133 appears as a USB audio input; the browser asks once for permission to use it.</p>
+      <div id="arrangement-issues" class="issues small"></div>
+      <div id="timeline" class="timeline"></div>
+    </section>
+    <section class="module" data-module="log" data-span="3" aria-label="Activity log">
+      <h2 class="module-head"><span class="module-index">05</span>log</h2>
+      <div id="activity" class="activity"></div>
     </section>
 
-    <section class="module samples-panel" aria-label="Samples">
-      <h2 class="module-head"><span class="module-index">07</span>samples</h2>
+    <section class="module samples-panel" data-module="samples" data-span="8" aria-label="Samples">
+      <h2 class="module-head"><span class="module-index">06</span>samples</h2>
       <div class="samples-head">
         <button id="samples-load" class="btn" type="button" title="Read the sample library from the device">read library</button>
         <input id="samples-search" class="name-input small" placeholder="search names or slots" spellcheck="false" aria-label="Search samples">
@@ -171,7 +159,7 @@
         <div class="np-bar"><div id="backup-fill" class="np-fill"></div></div>
         <span id="backup-text" class="backup-text"></span>
       </div>
-      <div class="samples-body">
+      <div class="samples-body" data-split="samples">
         <div id="sample-list" class="sample-list"></div>
         <div class="sample-detail">
           <figure class="screen-panel"><figcaption id="sample-title">waveform</figcaption><canvas id="sample-wave"></canvas></figure>
@@ -185,7 +173,30 @@
       <p class="hint">Uses the EP-133's private file protocol, one session at a time. Close TE's EP Sample Tool while you use this.</p>
     </section>
 
-    <section class="module designer-panel" aria-label="Sound design">
+    <section class="module sound-panel" data-module="sound" data-span="12" aria-label="Sound">
+      <h2 class="module-head"><span class="module-index">07</span>sound</h2>
+      <div class="sound-head">
+        <button id="listen-btn" class="btn toggle" type="button" aria-pressed="false" title="Analyse the sound (asks once for permission to use the EP-133 audio input)"><span class="led"></span>listen</button>
+        <label><span class="setting-name">source</span>
+          <select id="sound-source">
+            <option value="device">EP-133 audio (USB)</option>
+            <option value="simulator">browser simulator voices</option>
+          </select>
+        </label>
+        <span id="sound-status" class="sound-status">not listening</span>
+        <span id="sound-readout" class="sound-readout num"></span>
+      </div>
+      <div class="sound-grid" data-regions="sound" data-regions-wide>
+        <figure class="screen-panel" data-region="scope" data-region-label="scope"><figcaption>scope</figcaption><canvas id="scope-canvas"></canvas></figure>
+        <figure class="screen-panel spectrum" data-region="spectrum" data-region-label="spectrum"><figcaption>spectrum</figcaption><canvas id="spectrum-canvas"></canvas></figure>
+        <figure class="screen-panel" data-region="levels" data-region-label="levels"><figcaption>levels · dBFS</figcaption><canvas id="meters-canvas"></canvas></figure>
+        <figure class="screen-panel" data-region="balance" data-region-label="balance"><figcaption>balance</figcaption><canvas id="balance-canvas"></canvas></figure>
+        <figure class="screen-panel" data-region="spectrogram" data-wide data-region-label="spectrogram"><figcaption>spectrogram · beats and bars from the playhead</figcaption><canvas id="spectrogram-canvas"></canvas></figure>
+      </div>
+      <p class="hint">Listening only: nothing is played back. The EP-133 appears as a USB audio input; the browser asks once for permission to use it.</p>
+    </section>
+
+    <section class="module designer-panel" data-module="design" data-span="12" aria-label="Sound design">
       <h2 class="module-head"><span class="module-index">08</span>sound design</h2>
       <div class="designer-head">
         <select id="designer-start" class="designer-start" aria-label="Start from a preset or a saved design"></select>
@@ -201,18 +212,20 @@
       </div>
 
       <div id="designer-page-design" class="designer-page">
-        <div class="designer-body">
+        <div class="designer-body" data-split="design">
           <div id="designer-controls" class="design-controls"></div>
-          <div class="designer-output">
-            <figure class="screen-panel"><figcaption>sound · as the device will get it</figcaption><canvas id="designer-wave"></canvas></figure>
-            <div class="designer-screens">
-              <figure class="screen-panel"><figcaption>spectrum</figcaption><canvas id="designer-spectrum"></canvas></figure>
-              <figure class="screen-panel"><figcaption>spectrogram</figcaption><canvas id="designer-spectrogram"></canvas></figure>
+          <div class="designer-output" data-regions="design-output">
+            <figure class="screen-panel" data-region="wave" data-region-label="waveform"><figcaption>sound · as the device will get it</figcaption><canvas id="designer-wave"></canvas></figure>
+            <div class="designer-screens" data-region="screens" data-region-label="spectrum and spectrogram" data-regions="design-screens" data-regions-wide>
+              <figure class="screen-panel" data-region="spectrum" data-region-label="spectrum"><figcaption>spectrum</figcaption><canvas id="designer-spectrum"></canvas></figure>
+              <figure class="screen-panel" data-region="spectrogram" data-region-label="spectrogram"><figcaption>spectrogram</figcaption><canvas id="designer-spectrogram"></canvas></figure>
             </div>
-            <dl id="designer-facts" class="sample-facts designer-facts"></dl>
-            <ul id="designer-notes" class="designer-notes"></ul>
-            <p id="designer-similar" class="designer-similar"></p>
-            <div class="row">
+            <div class="designer-analysis" data-region="analysis" data-region-label="analysis">
+              <dl id="designer-facts" class="sample-facts designer-facts"></dl>
+              <ul id="designer-notes" class="designer-notes"></ul>
+              <p id="designer-similar" class="designer-similar"></p>
+            </div>
+            <div class="row" data-region="play" data-region-label="play">
               <button id="designer-play" class="btn primary" type="button" title="Play (space)">▶ play</button>
               <button id="designer-hold" class="btn toggle" type="button" aria-pressed="false" title="Hold: sustain on the loop, like a held pad in key mode"><span class="led"></span>hold</button>
               <button id="designer-stop" class="btn ghost" type="button">■</button>
@@ -221,7 +234,7 @@
               </label>
             </div>
 
-            <fieldset class="param-group designer-explore">
+            <fieldset class="param-group designer-explore" data-region="explore" data-region-label="explore">
               <legend>explore</legend>
               <div class="row">
                 <label class="param explore-amount"><span class="param-name">amount</span>
@@ -239,11 +252,11 @@
               </div>
             </fieldset>
 
-            <div class="row">
+            <div class="row" data-region="upload" data-region-label="upload">
               <input id="designer-slot" class="slot-input num" type="number" min="1" max="999" placeholder="slot" title="Leave empty for the next free slot from 600" aria-label="Slot">
               <button id="designer-upload" class="btn primary" type="button">⤒ upload to device</button>
             </div>
-            <p class="hint">Uploads set the root note, loop and play mode for you, go to empty slots only (or ones koii uploaded), need a complete backup, and are checked against the device's checksum. Then on the EP-133: press <b>SOUND</b>, choose a pad, and use <b>−</b> / <b>+</b> until the screen shows the slot number.</p>
+            <p class="hint" data-region="upload-hint" data-region-label="upload hint">Uploads set the root note, loop and play mode for you, go to empty slots only (or ones koii uploaded), need a complete backup, and are checked against the device's checksum. Then on the EP-133: press <b>SOUND</b>, choose a pad, and use <b>−</b> / <b>+</b> until the screen shows the slot number.</p>
           </div>
         </div>
       </div>
@@ -258,7 +271,7 @@
           <button id="bounce-btn" class="btn" type="button" title="Play it on the EP-133 once and record the result as a tempo-synced loop">● bounce</button>
           <span id="sampler-status" class="designer-status num"></span>
         </div>
-        <div class="sampler-body">
+        <div class="sampler-body" data-split="sampler">
           <div id="sampler-sources" class="sample-list sampler-sources"></div>
           <div class="sampler-editor">
             <figure class="screen-panel"><figcaption id="sampler-title">drag across the wave to select</figcaption><canvas id="sampler-wave"></canvas></figure>
