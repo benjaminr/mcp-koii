@@ -26,7 +26,9 @@ Pattern notation (full spec: the notation_guide prompt):
   snare: ....x.......x...      x hit, X accent, o ghost, 1-9 level, . rest, - hold previous note
   hat:   x.x.                  a shorter track repeats if it divides the pattern length
   bass:  x..x..x.x-..x...      pitched track: needs a channel target and a notes line
-  bass notes: C2 C2 Eb2 G1     each hit takes the next note (cycles); chords: C3+Eb3+G3; C4 = 60
+  bass notes: C1 C1 Eb1 G0     each hit takes the next note (cycles); chords: C3+Eb3+G3; C4 = 60
+Pitched notes C2-B5 (36-83) also trigger pads by default; keep basslines below C2 unless the user has set
+the device's receive channel. check_pattern warns about clashes.
 Sounds: kit aliases (kick snare hat oh clap rim ride perc ... see show_kit), pads (A. A0 AEnter A1-A9, B.., C.., D..),
 MIDI notes (36), or chN for pitched notes on MIDI channel N.
 Songs/arrangements: "intro x2, verse x4, verse+bassline x4, outro" (a+b layers patterns).
@@ -116,7 +118,7 @@ def stop() -> str:
 def audition(sound: str, velocity: int = 100, note: Optional[str] = None) -> str:
     """
     Play a single hit to hear what a sound name or pad is (e.g. "kick", "A7", "36").
-    For a pitched target (chN or an alias to one) pass `note`, e.g. "C2".
+    For a pitched target (chN or an alias to one) pass `note`, e.g. "C1" (default; notes C2 and up also trigger pads).
     """
     return studio.audition(sound, velocity, note)
 

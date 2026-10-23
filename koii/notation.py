@@ -98,6 +98,7 @@ class Pattern:
     swing: int = 50
     grid: str = "1/16"
     source: str = ""
+    warnings: List[str] = field(default_factory=list)
 
     @property
     def step_beats(self) -> Fraction:
@@ -358,7 +359,28 @@ def parse_pattern(text: str, aliases: Optional[Dict[str, str]] = None) -> Patter
         swing=settings.get("swing", 50),
         grid=settings.get("grid", "1/16"),
         source=text,
+        warnings=_pad_collision_warnings(tracks.values()),
     )
+
+
+def _pad_collision_warnings(tracks) -> List[str]:
+    """
+    Pitched notes in 36-83 share note numbers with pads. Pads that listen on all
+    channels (the EP-133 default) play along with them, as seen on hardware.
+    """
+    warnings = []
+    for track in tracks:
+        if not track.target.pitched:
+            continue
+        clashes = sorted({n for chord in track.notes for n in chord if device.note_pad(n)})
+        if clashes:
+            names = ", ".join(f"{note_name(n)} ({device.note_pad(n)})" for n in clashes)
+            warnings.append(
+                f"'{track.name}' notes {names} share note numbers with pads. If the EP-133 receives on all "
+                "channels (the default), those pads will play too. Keep pitched notes below C2, or set the "
+                "system MIDI channel to 1 (see DEVICE.md)."
+            )
+    return warnings
 
 
 # ---------------------------------------------------------------------------
@@ -392,6 +414,7 @@ def render_pattern(pattern: Pattern) -> str:
         if track.notes:
             row += "   " + " ".join("+".join(note_name(n) for n in chord) for chord in track.notes)
         lines.append(row)
+    lines.extend(f"warning: {w}" for w in pattern.warnings)
     return "\n".join(lines)
 
 

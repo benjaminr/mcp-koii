@@ -198,7 +198,7 @@ class Studio:
         self._require_port()
         if not 1 <= velocity <= 127:
             raise ValueError("velocity must be 1-127")
-        pitch_line = f"{sound} notes: {note or 'C3'}\n" if note or _is_pitched(self, sound) else ""
+        pitch_line = f"{sound} notes: {note or 'C1'}\n" if note or _is_pitched(self, sound) else ""
         text = f"@bpm 120\n{sound}: x---\n{pitch_line}"
         pattern = self.library.parse(text)
         pattern.tracks[0].steps[0] = velocity

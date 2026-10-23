@@ -88,12 +88,12 @@ pad listens to, and give the track a `notes` line:
 @map bass = ch2
 
 bass:       x..x..x.x-..x...
-bass notes: C2 C2 Eb2 G1 C2
+bass notes: C1 C1 Eb1 G0 C1
 ```
 
 - The grid gives the rhythm; the `notes` line gives the pitches.
 - Each hit takes the next note. If the list runs out it starts again from the
-  first note, so `bass notes: C2` plays every hit on C2.
+  first note, so `bass notes: C1` plays every hit on C1.
 - Chords join notes with `+`: `C3+Eb3+G3`.
 - Note names: `C4` = MIDI 60 (middle C), sharps `#`, flats `b`, octaves −1 to 9.
   Plain MIDI numbers (`48`) work too.
@@ -101,6 +101,11 @@ bass notes: C2 C2 Eb2 G1 C2
 A pitched track **must** play on a channel (`chN`), and a pad track can't have a
 `notes` line. On the device, set the pad that should play the line to that MIDI
 channel (Sound Edit → MIDI page, OS 2.0+). See [DEVICE.md](DEVICE.md).
+
+Pitched notes from C2 (36) to B5 (83) share note numbers with pads, and by default
+the EP-133's other pads hear every channel, so they would play along. The pattern
+summary shows a warning when that can happen; keep basslines below C2 or change the
+device's receive channel as DEVICE.md describes.
 
 ## Directives
 
@@ -155,5 +160,5 @@ oh:    ....|....|....|..x.
 
 bass:       x..x|..x-|x...|.x..
 bass:       x..x|..x-|x.x.|x...
-bass notes: C2 C2 G1 C2 Eb2 C2 C2 G1 Bb1 C2
+bass notes: C1 C1 G0 C1 Eb1 C1 C1 G0 Bb0 C1
 ```

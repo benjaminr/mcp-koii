@@ -154,3 +154,12 @@ def test_arrangements():
 def test_render_shows_steps_as_written():
     text = render_pattern(parse_pattern("hat: 1.2.3.4.5.6.7.8.9...X..."))
     assert "1.2.|3.4.|5.6.|7.8.|9...|X..." in text
+
+
+def test_warns_when_pitched_notes_would_also_trigger_pads():
+    clean = parse_pattern("@map bass = ch2\nbass: x.x.\nbass notes: C1 G1")
+    assert clean.warnings == []
+    clash = parse_pattern("@map bass = ch2\nbass: x.x.x.\nbass notes: C1 C3 D3")
+    assert len(clash.warnings) == 1
+    assert "C3 (B.), D3 (BEnter)" in clash.warnings[0]
+    assert "warning: 'bass' notes C3 (B.)" in render_pattern(clash)

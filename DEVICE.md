@@ -68,12 +68,24 @@ sample at different pitches from this project:
 Knob Y (root note) sets which MIDI note plays the sample at its original pitch. If the
 line sounds transposed, adjust it there.
 
+**Tested on hardware:** with `B.` on channel 2, notes C1–G1 played the bass at those
+pitches, and a bassline on channel 2 played cleanly under drums on channel 1.
+
+**Pad clashes (hardware):** pads without their own channel listen on *all* channels by
+default, so a pitched note that shares a number with a pad (36–83) also plays that pad.
+On hardware, a C3–G3 run on channel 2 played the bass *and* the group B pads at notes
+48–55. Two ways around it:
+
+- Keep pitched notes below **C2** (note 36). Most basslines fit, and `check_pattern`
+  warns about any note that clashes.
+- Set the system MIDI receive channel to **1** instead of "all" (SHIFT + ERASE for
+  system settings). Pads without their own channel then only hear channel 1, so drums
+  still work and pitched channels can use any note. *Not yet tested on hardware.*
+
 KEYS mode does something similar on the device itself: it spreads the selected pad's
 sample chromatically across the 12 pads, and in that mode the EP-133 accepts the full
 note range 0–127. Keys mode changes the note map, so drums sent alongside it won't
 trigger their usual pads. Per-pad channels are the better route for full beats.
-
-This setup follows the official guide but **hasn't been tested on hardware yet**.
 
 ## Play modes (official)
 

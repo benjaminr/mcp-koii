@@ -61,7 +61,7 @@ Full spec: **[NOTATION.md](NOTATION.md)**. The short version:
 | `.` `-` | rest, hold the previous note |
 | spaces, `\|` | ignored; use them to group beats |
 | `@bpm` `@swing` `@grid` | tempo, swing (50–75), step length |
-| `@map bass = ch2` + `bass notes: C2 Eb2 G1` | pitched lines on a MIDI channel |
+| `@map bass = ch2` + `bass notes: C1 Eb1 G0` | pitched lines on a MIDI channel |
 | `verse x4, chorus+bass x2` | arrangements: repeat with `xN`, layer with `+` |
 
 Sounds are named with kit aliases (`kick`, `snare`, `hat`, `oh`, `clap`, …), pad labels
