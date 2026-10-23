@@ -13,7 +13,7 @@ What this project relies on, where each fact comes from, and how sure we are.
 | Area | Fact | Source | What koii does |
 |------|------|--------|----------------|
 | Connection | USB-C port named `EP-133`, MIDI in and out | hardware | finds it automatically |
-| Connection | Also a class-compliant USB audio device: 2 in / 2 out, 48 kHz on macOS | hardware | lets the visualiser hear the device (planned) |
+| Connection | Also a class-compliant USB audio device: 2 in / 2 out, 48 kHz on macOS | hardware | the visualiser's sound module listens to it |
 | Connection | Identity request answers with manufacturer `00 20 76`, device `33`; version bytes are zero | hardware | can't read the OS version this way |
 | Notes | 4 groups × 12 pads = notes 36–83, groups 12 notes apart, pad order `.` `0` ENTER `1`–`9` | hardware | pad labels and kit names map to these |
 | Notes | Receives on all channels, sends on channel 1 | official; sending checked | plays pads on channel 1 by default |

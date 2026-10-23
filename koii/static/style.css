@@ -516,3 +516,27 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .score .staff-name { font: 10px var(--num); letter-spacing: 0.06em; fill: var(--muted); text-transform: uppercase; }
 .score .rest-stroke { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .score .rest-dot { fill: var(--ink); }
+
+/* -- sound ------------------------------------------------------------------- */
+
+.sound-panel { grid-column: 1 / -1; }
+.sound-head { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.sound-head label { display: inline-flex; gap: 7px; align-items: center; }
+.sound-head select { background: #fff; border: var(--line) solid var(--ink); border-radius: 3px; padding: 4px 6px; }
+.sound-status { color: var(--muted); font-size: 12px; }
+.sound-status.on { color: var(--ink); }
+.sound-readout { margin-left: auto; font-size: 13px; }
+.sound-grid { display: grid; grid-template-columns: 1.1fr 2fr 1.1fr 0.8fr; gap: 12px; }
+.sound-grid .wide { grid-column: 1 / -1; }
+@media (max-width: 1000px) { .sound-grid { grid-template-columns: 1fr 1fr; } }
+.screen-panel {
+  margin: 0; display: flex; flex-direction: column;
+  background: var(--screen); border: var(--line) solid var(--ink); border-radius: 3px;
+  box-shadow: 3px 3px 0 var(--ink); overflow: hidden;
+}
+.screen-panel figcaption {
+  font-family: var(--num); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: #8f897e; padding: 5px 8px 0;
+}
+.screen-panel canvas { display: block; width: 100%; height: 150px; }
+.screen-panel.wide canvas { height: 170px; }

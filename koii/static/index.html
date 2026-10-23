@@ -130,6 +130,29 @@
         <div id="activity" class="activity"></div>
       </section>
     </aside>
+
+    <section class="module sound-panel" aria-label="Sound">
+      <h2 class="module-head"><span class="module-index">06</span>sound</h2>
+      <div class="sound-head">
+        <button id="listen-btn" class="btn toggle" type="button" aria-pressed="false" title="Analyse the sound (asks once for permission to use the EP-133 audio input)"><span class="led"></span>listen</button>
+        <label><span class="setting-name">source</span>
+          <select id="sound-source">
+            <option value="device">EP-133 audio (USB)</option>
+            <option value="simulator">browser simulator voices</option>
+          </select>
+        </label>
+        <span id="sound-status" class="sound-status">not listening</span>
+        <span id="sound-readout" class="sound-readout num"></span>
+      </div>
+      <div class="sound-grid">
+        <figure class="screen-panel"><figcaption>scope</figcaption><canvas id="scope-canvas"></canvas></figure>
+        <figure class="screen-panel spectrum"><figcaption>spectrum</figcaption><canvas id="spectrum-canvas"></canvas></figure>
+        <figure class="screen-panel"><figcaption>levels · dBFS</figcaption><canvas id="meters-canvas"></canvas></figure>
+        <figure class="screen-panel"><figcaption>balance</figcaption><canvas id="balance-canvas"></canvas></figure>
+        <figure class="screen-panel wide"><figcaption>spectrogram · beats and bars from the playhead</figcaption><canvas id="spectrogram-canvas"></canvas></figure>
+      </div>
+      <p class="hint">Listening only: nothing is played back. The EP-133 appears as a USB audio input; the browser asks once for permission to use it.</p>
+    </section>
   </main>
 
   <div id="toast" class="toast" role="status" hidden></div>

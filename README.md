@@ -68,6 +68,10 @@ pads you press on the device.
 - **Library and arranger:** open, play, loop and delete saved patterns, build songs on a
   timeline, and download `.mid` files.
 - **Activity:** each MCP call Claude makes, with **Open in editor** for its patterns.
+- **Sound:** the EP-133 is also a USB audio device, so the page can listen to what it
+  actually plays: oscilloscope, spectrum, a spectrogram marked with beats and bars, stereo
+  level meters (dBFS, peak hold, clip) and a four-band balance view. It only listens; the
+  browser asks once for permission. It can also analyse the browser simulator's voices.
 - **No device?** Choose *Browser simulator* (top right) and the page plays synthesised
   drums and bass itself.
 

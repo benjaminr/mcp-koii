@@ -8,6 +8,7 @@ import { BRUSHES, Grid } from "./grid.js";
 import * as model from "./model.js";
 import { Notation } from "./notation.js";
 import { roleForName, roleForPad, roleForTrack } from "./roles.js";
+import { SoundScope } from "./sound.js";
 
 const $ = (selector) => document.querySelector(selector);
 const STORAGE_KEY = "koii.editor";
@@ -73,6 +74,18 @@ const grid = new Grid($("#grid"), {
   onNotes: (index, text) => editModel((m) => { m.tracks[index].notes = text; }),
 });
 const notation = new Notation($("#notation"), $("#notation-legend"));
+const sound = new SoundScope({
+  scope: $("#scope-canvas"),
+  spectrum: $("#spectrum-canvas"),
+  spectrogram: $("#spectrogram-canvas"),
+  meters: $("#meters-canvas"),
+  balance: $("#balance-canvas"),
+  readout: $("#sound-readout"),
+}, (status) => {
+  $("#sound-status").textContent = status.text;
+  $("#sound-status").classList.toggle("on", status.listening);
+  $("#listen-btn").setAttribute("aria-pressed", String(status.listening));
+});
 
 // -- small helpers --------------------------------------------------------------
 
@@ -425,6 +438,7 @@ function frame() {
   const { section, beat, elapsed, total } = position;
   $("#np-fill").style.width = `${Math.min(100, (elapsed / total) * 100)}%`;
   const sixteenth = Math.floor((beat % 1) * 4 + 1e-6) + 1;
+  sound.setBeat({ bar: Math.floor(beat / 4) + 1, beat: Math.floor(beat % 4) + 1 });
   device.setCounter(`${Math.floor(beat / 4) + 1}.${Math.floor(beat % 4) + 1}.${sixteenth}`);
   device.setBpm(section.bpm);
   const playhead = document.querySelector(".timeline-playhead");
@@ -737,6 +751,10 @@ function bindControls() {
     if (value) editModel((m) => model.addTrack(m, value, value.startsWith("ch")));
   });
 
+  $("#listen-btn").addEventListener("click", () => (sound.running ? sound.stop() : startListening()));
+  $("#sound-source").addEventListener("change", () => {
+    if (sound.running) startListening();
+  });
   $("#arrangement").addEventListener("input", previewArrangement);
   $("#arr-play").addEventListener("click", () => playArrangement(false));
   $("#arr-loop").addEventListener("click", () => playArrangement(true));
@@ -763,6 +781,25 @@ function bindControls() {
     if (event.key.toLowerCase() === "l") return setLoop(!state.loop);
     return undefined;
   });
+}
+
+// -- sound -----------------------------------------------------------------------------
+
+async function startListening() {
+  const source = $("#sound-source").value;
+  try {
+    if (source === "simulator") {
+      enableSound(true);
+      const tap = synth.tap();
+      sound.listenToNode(tap.context, tap.node, "browser simulator voices");
+    } else {
+      await sound.listenToInput();
+    }
+  } catch (error) {
+    const denied = error.name === "NotAllowedError";
+    toast(denied ? "The browser wasn't allowed to use the audio input. Allow it in the address bar's site settings, then try again."
+                 : `Couldn't listen: ${error.message}`, true);
+  }
 }
 
 async function playArrangement(loop) {

@@ -15,10 +15,10 @@ export class BrowserSynth {
     if (!this.context) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       this.context = new AudioContext();
-      const compressor = this.context.createDynamicsCompressor();
+      this.master = this.context.createDynamicsCompressor();
       this.output = this.context.createGain();
       this.output.gain.value = 0.7;
-      this.output.connect(compressor).connect(this.context.destination);
+      this.output.connect(this.master).connect(this.context.destination);
       this.noise = this._noiseBuffer();
     }
     this.context.resume();
@@ -27,6 +27,11 @@ export class BrowserSynth {
 
   disable() {
     this.enabled = false;
+  }
+
+  /** Where the sound visualiser can listen in: the synth's context and its final node. */
+  tap() {
+    return this.context ? { context: this.context, node: this.master } : null;
   }
 
   _noiseBuffer() {
