@@ -18,6 +18,7 @@ from koii.sequence import NOTE_OFF, NOTE_ON, compile_pattern
 from patterns import random_pattern_text
 
 ROUNDTRIP = Path(__file__).parent / "roundtrip.mjs"
+ARRANGEMENT = Path(__file__).parent / "arrangement.mjs"
 PATTERN_ALPHABET = st.sampled_from(list("xXo123456789.-| :#@\nabkicnhtsd0ACBDE") + ["kick", "snare", "hat", "@bpm ", "@map ", " = ", "ch2", "notes", "C1", "Eb2", "+"])
 
 
@@ -74,3 +75,31 @@ def test_browser_editor_round_trips_patterns_exactly():
         assert (again.bpm, again.swing, again.grid, again.length) == \
                (original.bpm, original.swing, original.grid, original.length), f"seed {seed}"
         assert compiled(again) == compiled(original), f"seed {seed}: the editor changed what plays\n{text}"
+
+
+ARRANGEMENTS = [
+    "intro x2, verse x4, verse+bass x4, chorus x8, outro",
+    "a+b+c x3\nd, e ×2",
+    "  spaced  +  out x 4 ,, # a comment\nnext",
+    "deep-kick+deep-hats x8, A.+ch2.x x1",
+    "verse x0", "verse x1000", "verse x", "bad name", "a++b", "x2", "",
+]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is needed to run the browser code")
+def test_the_arranger_grid_reads_arrangements_like_the_server():
+    result = subprocess.run(["node", str(ARRANGEMENT)], input=json.dumps(ARRANGEMENTS),
+                            capture_output=True, text=True, check=True, timeout=60)
+    for text, browser in zip(ARRANGEMENTS, json.loads(result.stdout)):
+        try:
+            server = [(section.names, section.repeat) for section in parse_arrangement(text)]
+        except NotationError:
+            server = None
+        if server is None:
+            # The server also refuses an empty arrangement, which the grid shows as an empty song.
+            assert "error" in browser or not browser["sections"], f"{text!r}: the server refuses it, the grid read {browser}"
+            continue
+        assert "error" not in browser, f"{text!r}: the server reads it, the grid said {browser['error']}"
+        assert [(s["layers"], s["repeat"]) for s in browser["sections"]] == server, text
+        rewritten = [(section.names, section.repeat) for section in parse_arrangement(browser["text"])]
+        assert rewritten == server, f"{text!r}: the grid wrote {browser['text']!r}, which plays differently"
