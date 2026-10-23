@@ -93,13 +93,18 @@ export class Arranger {
 
   // -- reading and writing --------------------------------------------------------------
 
-  /** Show arrangement text (typed, or a song opened). Lanes added by hand but unused stay. */
-  setText(text) {
+  /**
+   * Show arrangement text. The grid then has exactly the lanes the text uses: opening a
+   * song (`fresh`) lists them in the song's order; typing keeps the order of lanes still in
+   * use and adds new ones at the bottom.
+   */
+  setText(text, { fresh = false } = {}) {
     const { sections, error } = parseArrangement(text);
     if (error) return false;   // the server reports it; keep the grid as it was meanwhile
     this.sections = sections;
-    const used = sections.flatMap((section) => section.layers);
-    this.lanes = [...new Set([...used, ...this.lanes.filter((lane) => this._exists(lane))])];
+    const used = [...new Set(sections.flatMap((section) => section.layers))];
+    const kept = fresh ? [] : this.lanes.filter((lane) => used.includes(lane));
+    this.lanes = [...kept, ...used.filter((lane) => !kept.includes(lane))];
     this.render();
     return true;
   }

@@ -700,7 +700,7 @@ function renderTrackOptions() {
 async function openSong(song) {
   $("#arrangement").value = song.arrangement;
   $("#song-name").value = song.name;
-  arranger.setText(song.arrangement);
+  arranger.setText(song.arrangement, { fresh: true });
   renderSongs();
   previewArrangement();
 }
