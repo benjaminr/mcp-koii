@@ -69,7 +69,9 @@ Knob Y (root note) sets which MIDI note plays the sample at its original pitch. 
 line sounds transposed, adjust it there.
 
 **Tested on hardware:** with `B.` on channel 2, notes C1–G1 played the bass at those
-pitches, and a bassline on channel 2 played cleanly under drums on channel 1.
+pitches, and a bassline on channel 2 played cleanly under drums on channel 1. The pad
+also still played from its normal note (48) on channel 1, so giving a pad its own
+channel doesn't stop it working as a drum pad.
 
 **Pad clashes (hardware):** pads without their own channel listen on *all* channels by
 default, so a pitched note that shares a number with a pad (36–83) also plays that pad.
