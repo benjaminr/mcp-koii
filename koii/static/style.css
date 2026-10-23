@@ -143,6 +143,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* -- modules ---------------------------------------------------------------- */
 
+/* The device is tall, so it spans two rows: the pattern editor and the side column sit
+   beside it on the first, and the samples module on the second. Everything else runs
+   full width below. */
 .layout {
   display: grid;
   grid-template-columns: minmax(380px, 460px) minmax(0, 1fr) minmax(260px, 320px);
@@ -150,14 +153,17 @@ button, input, select, textarea { font: inherit; color: inherit; }
   padding: 22px;
   align-items: start;
 }
+.device-panel { grid-row: 1 / span 2; }
+.side { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.samples-panel { grid-column: 2 / -1; grid-row: 2; }
 @media (max-width: 1240px) {
   .layout { grid-template-columns: minmax(380px, 460px) minmax(0, 1fr); }
-  .side { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .side { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); align-items: start; }
 }
 @media (max-width: 800px) {
   .layout { grid-template-columns: 1fr; padding: 12px; gap: 16px; }
+  .device-panel, .samples-panel { grid-row: auto; grid-column: auto; }
 }
-.side { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
 .module {
   background: var(--paper);
   border: var(--line) solid var(--ink);
@@ -543,7 +549,6 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 
 /* -- samples ------------------------------------------------------------------ */
 
-.samples-panel { grid-column: 1 / -1; }
 .samples-head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
 .samples-head .name-input.small { flex: 0 1 220px; }
 .samples-summary { font-size: 13px; }
@@ -592,12 +597,15 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .led.rec { background: #c23b0b; }
 .btn.toggle[aria-pressed="true"] .led.rec { background: #ff2a00; box-shadow: 0 0 8px #ff2a00; }
 
-.designer-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(340px, 1fr); gap: 18px; align-items: start; }
+.designer-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 460px); gap: 18px; align-items: start; }
 @media (max-width: 1100px) { .designer-body { grid-template-columns: 1fr; } }
-.design-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
-@media (max-width: 760px) { .design-controls { grid-template-columns: 1fr; } }
-.design-column { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.design-column-head { font-family: var(--num); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin: 0; color: var(--muted); }
+/* Cards flow down two balanced columns (like a newspaper), so a long layer stack doesn't
+   leave the other column half empty. */
+.design-controls { columns: 3 290px; column-gap: 14px; }
+.design-controls > * { break-inside: avoid; margin: 0 0 10px; width: 100%; }
+.design-column-head { font-family: var(--num); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+                      margin: 0 0 6px; color: var(--muted); break-after: avoid; }
+.design-controls > .adder { display: block; }
 .design-card { border: var(--line) solid var(--ink); border-radius: 3px; background: #fff; box-shadow: 3px 3px 0 var(--ink); }
 .layer-card { border-left: 5px solid var(--signal); }
 .effect-card { border-left: 5px solid var(--meter-c); }
@@ -615,7 +623,7 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .param-group.folded legend.fold::before { content: "▸ "; }
 .param-group.folded > :not(legend) { display: none; }
 .param-group.folded { padding-bottom: 0; border-bottom-color: transparent; }
-.param { display: grid; grid-template-columns: 82px 1fr 92px; gap: 8px; align-items: center; font-size: 12px; margin-top: 4px; }
+.param { display: grid; grid-template-columns: 78px minmax(60px, 1fr) auto; gap: 8px; align-items: center; font-size: 12px; margin-top: 4px; }
 .param input[type="range"] { accent-color: var(--signal); width: 100%; }
 .param-name { color: var(--ink-2); }
 .param-value { font-size: 11px; text-align: right; white-space: nowrap; cursor: text; }
@@ -623,11 +631,12 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .param-choice { width: 100%; background: var(--paper); border: var(--line) solid var(--ink); border-radius: 3px; padding: 2px 4px; }
 .param.choice .slot-input { width: 64px; padding: 2px 6px; }
 
-.designer-output { display: flex; flex-direction: column; gap: 10px; min-width: 0; position: sticky; top: 12px; }
+/* Stays in view below the sticky top bar while a long layer stack scrolls past. */
+.designer-output { display: flex; flex-direction: column; gap: 10px; min-width: 0; position: sticky; top: 80px; }
 .designer-output .screen-panel canvas { height: 150px; }
 .designer-screens { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .designer-screens .screen-panel canvas { height: 110px; }
-.designer-facts { margin: 0; }
+.designer-facts { margin: 0; grid-template-columns: repeat(3, auto 1fr); }
 .designer-notes { margin: 0; padding-left: 18px; font-size: 12px; color: var(--ink-2); }
 .designer-notes:empty, .designer-similar:empty { display: none; }
 .designer-similar { margin: 0; font-size: 12px; color: var(--ink-2); }

@@ -195,25 +195,24 @@ export class DesignControls {
     const change = (details) => this.changed(details);
     this.container.replaceChildren();
 
-    const layers = element("div", "design-column");
-    layers.append(element("h3", "design-column-head", "layers"));
-    design.layers.forEach((layer, index) => layers.append(this.layerCard(layer, index)));
-    if (design.layers.length < schema.max_layers) layers.append(this.adder("+ layer", Object.keys(schema.engines),
+    // Everything goes straight into the container, in order; CSS columns balance the heights.
+    const cards = [element("h3", "design-column-head", "layers")];
+    design.layers.forEach((layer, index) => cards.push(this.layerCard(layer, index)));
+    if (design.layers.length < schema.max_layers) cards.push(this.adder("+ layer", Object.keys(schema.engines),
       (engine) => {
         design.layers.push(this.newLayer(engine));
         change({ structural: true });
       }, (engine) => schema.engines[engine].label));
 
-    const rack = element("div", "design-column");
-    rack.append(element("h3", "design-column-head", "effects · in order"));
-    design.effects.forEach((effect, index) => rack.append(this.effectCard(effect, index)));
-    rack.append(this.adder("+ effect", Object.keys(schema.effects), (kind) => {
+    cards.push(element("h3", "design-column-head", "effects · in order"));
+    design.effects.forEach((effect, index) => cards.push(this.effectCard(effect, index)));
+    cards.push(this.adder("+ effect", Object.keys(schema.effects), (kind) => {
       design.effects.push({ type: kind, ...defaultsOf(schema.effects[kind].params) });
       change({ structural: true });
     }, (kind) => schema.effects[kind].label));
 
-    rack.append(this.soundCard(), this.instrumentCard());
-    this.container.append(layers, rack);
+    cards.push(element("h3", "design-column-head", "sample · device"), this.soundCard(), this.instrumentCard());
+    this.container.append(...cards);
   }
 
   newLayer(engine) {
