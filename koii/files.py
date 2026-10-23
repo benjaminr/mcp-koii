@@ -16,7 +16,10 @@ docs/file-protocol.md. Safety rules from that work, all enforced here:
 - Reads are exact-size, never past the end of a file, and a response's status
   byte is stripped before decoding (decoding it shifts every byte).
 
-This module only reads for now: list, stat, metadata, read and audition.
+Writing follows the community client's verified sequence: listen for an
+error loop first, open, send pages, an empty page to finish, re-initialise,
+then set the sample's metadata. Higher layers (koii.samples) decide what may
+be written; this module only knows how.
 """
 
 import fcntl
@@ -54,6 +57,11 @@ LOCK_TIMEOUT_SECONDS = 15
 REQUEST_TIMEOUT_SECONDS = 3.0
 DEBUG_GRACE_SECONDS = 2.5     # a looping device announces itself about once a second
 DEVICE_SAMPLE_RATE = 46875
+WRITE_TIMEOUT_SECONDS = 15.0
+PREFLIGHT_SECONDS = 1.2       # a stuck device sends a debug frame about once a second
+PUT_PAGE_PAUSE_SECONDS = 0.006
+SOUND_CREATE_FLAGS = 0x05     # READ | FILE; sample slots are plain files
+SAMPLE_NAME_LIMIT = 20
 
 
 class DeviceFileError(RuntimeError):
@@ -140,6 +148,16 @@ def match_response(data: List[int], request_id: int) -> Optional[Tuple[int, byte
     if data[5] != BIT_REQUEST_ID | (request_id >> 7) or data[6] != request_id & 0x7F or data[7] != CMD_FILE:
         return None
     return data[8], unpack7(data[9:])
+
+
+def put_payload_bytes(chunk_size: int) -> int:
+    """Raw bytes that fit in one write page for the device's chunk size (433 for 512)."""
+    packed_body = max(0, chunk_size - 6)
+    overhead = 8 + 2 + 1
+    if packed_body <= overhead:
+        return 433
+    available = packed_body - 1 - overhead
+    return max(1, available - available // 8)
 
 
 def _u16(value: int) -> bytes:
@@ -357,6 +375,50 @@ class Session:
         """Play a sample slot's raw audio on the device (no trim or envelope)."""
         self.request(bytes([0x05, 0x01]) + _u16(node))
 
+    # -- writing ----------------------------------------------------------------------
+
+    def preflight(self) -> None:
+        """Listen briefly before writing: never start a write on a device that's stuck in an error loop."""
+        deadline = time.monotonic() + PREFLIGHT_SECONDS
+        while time.monotonic() < deadline:
+            message = self.midi_in.poll()
+            if message is None:
+                time.sleep(0.02)
+            elif message.type == "sysex" and is_debug_frame(list(message.data)):
+                raise DeviceUnhappy(bytes(message.data[5:]).decode("utf-8", "replace").strip() + " (before writing)")
+
+    def write(self, node: int, parent: int, data: bytes, name: str, flags: int,
+              progress: Optional[Callable[[int, int], None]] = None) -> None:
+        """Create or replace a file: open, pages of data, an empty page to finish, then re-initialise."""
+        chunk = put_payload_bytes(self.init())
+        opened = self.request(bytes([0x02, 0x00, flags]) + _u16(node) + _u16(parent) + len(data).to_bytes(4, "big")
+                              + name.encode("ascii") + b"\0", timeout=WRITE_TIMEOUT_SECONDS)
+        if len(opened) >= 2 and int.from_bytes(opened[:2], "big") != node:
+            raise DeviceFileError(f"the device opened node {int.from_bytes(opened[:2], 'big')}, not {node}; stopped")
+        page = 0
+        for offset in range(0, len(data), chunk):
+            self.request(bytes([0x02, 0x01]) + _u16(page) + data[offset:offset + chunk], timeout=WRITE_TIMEOUT_SECONDS)
+            page += 1
+            if progress:
+                progress(min(offset + chunk, len(data)), len(data))
+            time.sleep(PUT_PAGE_PAUSE_SECONDS)
+        self.request(bytes([0x02, 0x01]) + _u16(page), timeout=WRITE_TIMEOUT_SECONDS)  # empty page: end of file
+        time.sleep(0.05)
+        self.init()
+
+    def set_metadata(self, node: int, values: Dict) -> None:
+        """Merge values into a node's metadata. Enums must be strings; play mode goes with envelope.release."""
+        for key in ("sound.playmode", "time.mode"):
+            if key in values and not isinstance(values[key], str):
+                raise DeviceFileError(f"{key} must be written as a string")
+        if "sound.playmode" in values and "envelope.release" not in values:
+            raise DeviceFileError("sound.playmode must be written together with envelope.release")
+        self.request(bytes([0x07, 0x01]) + _u16(node) + json.dumps(values, separators=(",", ":")).encode() + b"\0")
+
+    def delete(self, node: int) -> None:
+        """Delete a node: the bare 0x06 form (the documented 0x06 0x02 form silently does nothing)."""
+        self.request(bytes([0x06]) + _u16(node), timeout=10.0)
+
 
 class DeviceFiles:
     """The EP-133's sample library and projects. Every call runs one complete, locked session."""
@@ -435,6 +497,45 @@ class DeviceFiles:
         _check_slot(slot)
         with self.session("audition") as session:
             session.audition(slot)
+
+    # -- writing (callers decide what's allowed; see koii.samples) ------------------------------
+
+    def upload_sound(self, slot: int, pcm: bytes, name: str, channels: int = 1,
+                     progress: Optional[Callable[[int, int], None]] = None) -> Sound:
+        """
+        Write 16-bit little-endian PCM at 46,875 Hz into a slot, then check the device's own
+        CRC-32 of what it stored against ours. Raises if they differ.
+        """
+        _check_slot(slot)
+        if channels not in (1, 2) or len(pcm) % (2 * channels):
+            raise DeviceFileError("audio must be whole 16-bit frames, mono or stereo")
+        name = clean_sample_name(name)
+        with self.session("upload_sound") as session:
+            session.preflight()
+            session.write(slot, SOUNDS_NODE, pcm, f"{slot:03d}.pcm", SOUND_CREATE_FLAGS, progress)
+            session.set_metadata(slot, {"samplerate": DEVICE_SAMPLE_RATE, "channels": channels,
+                                        "format": "s16", "name": name})
+            stored = session.metadata(slot)
+            info = session.stat(slot)
+        sound = Sound(slot=slot, name=stored.get("name") or name, bytes=info["size"], metadata=stored)
+        if info["size"] != len(pcm) or sound.crc != zlib.crc32(pcm):
+            raise DeviceFileError(f"slot {slot} didn't store the sound intact (size {info['size']} of {len(pcm)}, "
+                                  f"checksum {'matches' if sound.crc == zlib.crc32(pcm) else 'differs'})")
+        return sound
+
+    def delete_sound(self, slot: int) -> None:
+        _check_slot(slot)
+        with self.session("delete_sound") as session:
+            session.preflight()
+            session.delete(slot)
+            if any(entry["id"] == slot for entry in session.list(SOUNDS_NODE)):
+                raise DeviceFileError(f"slot {slot} is still listed after deleting it")
+
+
+def clean_sample_name(name: str) -> str:
+    """Sample names are at most 20 ASCII characters."""
+    cleaned = "".join(c if 32 <= ord(c) < 127 else "_" for c in name).strip()
+    return (cleaned or "koii sound")[:SAMPLE_NAME_LIMIT]
 
 
 def _check_slot(slot: int) -> None:

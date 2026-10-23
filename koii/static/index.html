@@ -182,7 +182,33 @@
           </div>
         </div>
       </div>
-      <p class="hint">Uses the EP-133's private file protocol, one session at a time. Close TE's EP Sample Tool while you use this. Reading only: nothing on the device is changed.</p>
+      <p class="hint">Uses the EP-133's private file protocol, one session at a time. Close TE's EP Sample Tool while you use this.</p>
+    </section>
+
+    <section class="module designer-panel" aria-label="Sound design">
+      <h2 class="module-head"><span class="module-index">08</span>sound design</h2>
+      <div class="designer-head">
+        <div id="designer-presets" class="brushes designer-presets" role="toolbar" aria-label="Starting points"></div>
+        <button id="designer-randomise" class="btn ghost" type="button" title="Vary the current preset">randomise</button>
+        <label class="btn ghost file-btn" title="Load a WAV, MP3, AIFF… and convert it to the device's format">
+          load audio file<input id="designer-file" type="file" accept="audio/*">
+        </label>
+        <label class="stereo-option"><input id="designer-stereo" type="checkbox"> keep stereo</label>
+      </div>
+      <div class="designer-body">
+        <div id="designer-controls" class="designer-controls"></div>
+        <div class="designer-output">
+          <figure class="screen-panel"><figcaption>sound · 46,875 Hz, 16-bit, normalised to −1 dB</figcaption><canvas id="designer-wave"></canvas></figure>
+          <div id="designer-readout" class="num designer-readout"></div>
+          <div class="row">
+            <button id="designer-preview" class="btn" type="button" title="Hear it in this browser">▶ preview here</button>
+            <input id="designer-name" class="name-input small" maxlength="20" placeholder="name (20 characters)" spellcheck="false" aria-label="Sample name">
+            <input id="designer-slot" class="slot-input num" type="number" min="1" max="999" placeholder="slot" title="Leave empty for the next free slot from 600" aria-label="Slot">
+            <button id="designer-upload" class="btn primary" type="button">⤒ upload to device</button>
+          </div>
+          <p class="hint">Uploads go to empty slots only (or ones koii uploaded itself), need a complete backup, and are checked against the device's checksum. Then on the EP-133: press <b>SOUND</b>, choose a pad, and use <b>−</b> / <b>+</b> until the screen shows the slot number.</p>
+        </div>
+      </div>
     </section>
   </main>
 

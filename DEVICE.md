@@ -35,6 +35,9 @@ What this project relies on, where each fact comes from, and how sure we are.
 | Samples | Reading runs at about 26 KB/s (about 20 minutes for 33 MB) | hardware | backups copy unchanged samples from the previous one |
 | Samples | Each sample has its own root note (e.g. slot 401 "s95x round" is F1, most are C4) | hardware | explains basslines sounding transposed |
 | Samples | The file system handles one session at a time; overlapping sessions freeze it until power-cycled | community | every session holds `/tmp/ep-device.lock` |
+| Samples | Uploading works: 433-byte pages, about 5 KB/s; the device computes the CRC-32 itself, so reading it back proves the sound arrived intact | hardware | uploads only to empty slots or koii's own, after a backup |
+| Samples | Sample names are at most 20 ASCII characters | community | names are trimmed |
+| Samples | To put a sample on a pad: SOUND, choose the pad, then − / + until the screen shows its number | official (quick start) | shown after each upload |
 | Sequencer | Patterns per group, bars per pattern, projects: sources conflict | unknown | doesn't apply: koii sequences live over MIDI |
 
 **Live MIDI versus the device's sequencer.** koii plays patterns from the computer, note by

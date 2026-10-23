@@ -77,6 +77,11 @@ pads you press on the device.
   private file protocol as reverse-engineered by
   [ep-series-sysex](https://github.com/kmorrill/ep-series-sysex); close TE's EP Sample Tool
   while using it, since the device handles one file session at a time.
+- **Sound design:** build kicks, snares, hats, claps, toms, basses, plucks and zaps from
+  layers (pitched body, filtered noise, click) with a tone filter, envelope and drive;
+  or load any audio file. It renders at the device's own 46,875 Hz, previews in the
+  browser and uploads to an empty slot. Uploads need a complete backup, never touch sounds
+  koii didn't upload, and are checked against the device's own checksum.
 - **No device?** Choose *Browser simulator* (top right) and the page plays synthesised
   drums and bass itself.
 
@@ -122,6 +127,7 @@ sources and what has been checked on hardware, are in **[DEVICE.md](DEVICE.md)**
 | `export_musicxml` | write sheet music for a pattern (MuseScore, Dorico, Sibelius…) |
 | `list_device_sounds`, `play_sample` | the samples stored on the EP-133 |
 | `backup_device`, `cancel_backup` | copy every sample (WAV) and project to `~/.koii/backups` |
+| `upload_sample`, `delete_upload` | put a WAV on the device (converted to 46,875 Hz), or remove koii's own uploads |
 | `open_visualiser` | open the live browser view |
 | `show_kit`, `set_alias`, `remove_alias`, `list_factory_sounds` | the kit |
 

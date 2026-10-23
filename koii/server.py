@@ -251,6 +251,22 @@ def play_sample(slot: int) -> str:
 
 
 @tool
+def upload_sample(path: str, slot: Optional[int] = None, name: Optional[str] = None, keep_stereo: bool = False) -> str:
+    """
+    Upload a WAV file to the EP-133, converted to its format (46,875 Hz, 16-bit). Uses an empty slot
+    (the first free one from 600 if none is given). Refuses unless a complete backup exists, and never
+    overwrites a sound koii didn't upload. The result is checked against the device's own checksum.
+    """
+    return studio.samples.upload_file(path, slot, name, keep_stereo)["message"]
+
+
+@tool
+def delete_upload(slot: int) -> str:
+    """Delete a sound koii uploaded (only its own uploads, and only if unchanged since)."""
+    return studio.samples.delete_upload(slot)
+
+
+@tool
 def backup_device() -> str:
     """
     Back up every sample (as WAV, checked against the device's checksums) and every project

@@ -112,3 +112,26 @@ def test_downloading_sheet_music(visualiser):
     assert status == 200 and "musicxml" in content_type and b"<score-partwise" in body
     status, _, _ = request(visualiser, "GET", "/api/musicxml?what=nothing-saved")
     assert status == 400
+
+
+def test_the_browser_can_upload_a_sound_to_an_empty_slot(visualiser, tmp_path, monkeypatch):
+    import base64
+    from koii import files
+    from koii.backup import backup_device
+    from koii.samples import DeviceLibrary
+    from fake_device import FakeEP133, client_for, sound
+    for name in ("PAGE_PAUSE_SECONDS", "PUT_PAGE_PAUSE_SECONDS", "PREFLIGHT_SECONDS"):
+        monkeypatch.setattr(files, name, 0)
+    fake = FakeEP133({1: sound("micro kick", b"\x01\x00" * 100)})
+    client = client_for(fake, tmp_path / "lock")
+    visualiser.studio.samples = DeviceLibrary(visualiser.studio.events, tmp_path, client)
+    pcm = b"\x10\x00\xf0\xff" * 1000
+    status, data = command(visualiser, "upload_sample", {"slot": 700, "name": "koii", "pcm": base64.b64encode(pcm).decode()})
+    assert status == 400 and "backup first" in data["error"]
+    backup_device(client, tmp_path / "backups")
+    status, data = command(visualiser, "upload_sample", {"slot": 700, "name": "koii", "pcm": base64.b64encode(pcm).decode()})
+    assert status == 200 and fake.sounds[700][1] == pcm and "slot 700" in data["result"]["message"]
+    status, data = command(visualiser, "suggest_slot")
+    assert data["result"] == 600
+    status, data = command(visualiser, "upload_sample", {"slot": 1, "name": "x", "pcm": base64.b64encode(pcm).decode()})
+    assert status == 400 and "didn't put there" in data["error"]

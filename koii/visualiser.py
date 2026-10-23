@@ -12,6 +12,8 @@ approves, and the Host header must be local, which blocks DNS rebinding.
 """
 
 import argparse
+import base64
+import binascii
 import io
 import json
 import logging
@@ -42,7 +44,7 @@ COMMAND_HEADER = "X-Koii"
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 _CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
                   ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml"}
-_MAX_BODY_BYTES = 1_000_000
+_MAX_BODY_BYTES = 8_000_000  # room for a 20 s stereo upload, base64-encoded
 
 
 class Visualiser:
@@ -136,12 +138,23 @@ def _commands(studio: Studio) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
         "backup": lambda b: studio.samples.start_backup(),
         "cancel_backup": lambda b: studio.samples.cancel_backup(),
         "backup_status": lambda b: studio.samples.backup_status(),
+        "suggest_slot": lambda b: studio.samples.suggest_slot(),
+        "upload_sample": lambda b: studio.samples.upload(int(required(b, "slot")), _pcm(required(b, "pcm")),
+                                                         str(b.get("name") or "koii sound"), int(b.get("channels", 1))),
+        "delete_upload": lambda b: studio.samples.delete_upload(int(required(b, "slot"))),
         "disconnect": lambda b: studio.disconnect(),
     }
 
 
+def _pcm(encoded: str) -> bytes:
+    try:
+        return base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise _BadRequest(f"'pcm' must be base64-encoded 16-bit audio ({error})") from error
+
+
 # Commands that change something are shown in the activity feed.
-_QUIET_COMMANDS = {"check", "arrangement", "samples", "backup_status"}
+_QUIET_COMMANDS = {"check", "arrangement", "samples", "backup_status", "suggest_slot"}
 
 
 def full_state(studio: Studio) -> Dict[str, Any]:
@@ -329,8 +342,11 @@ def _make_handler(visualiser: Visualiser):
         def _record(self, name: str, body: Dict[str, Any], result: Any = None, error: Optional[str] = None) -> None:
             if name in _QUIET_COMMANDS:
                 return
+            if isinstance(result, dict) and "message" in result:
+                result = result["message"]
             summary = result.splitlines()[0] if isinstance(result, str) and result else None
-            studio.events.activity("browser", name, body, result=summary, error=error)
+            shown = {key: value for key, value in body.items() if key != "pcm"}
+            studio.events.activity("browser", name, shown, result=summary, error=error)
 
     return Handler
 

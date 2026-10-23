@@ -24,6 +24,7 @@ class FakeEP133:
         self.requests = []
         self.misbehave = None
         self.open_node = None
+        self.writing = None        # (slot, name, expected size, bytearray) while a write is open
 
     # mido-like port interface
     def poll(self):
@@ -85,6 +86,39 @@ class FakeEP133:
             assert chunk, "the client read past the end of the file"
             return 0, page.to_bytes(2, "big") + chunk
         if command == 0x05:
+            return 0, b""
+        if command == 0x02 and payload[1] == 0x00:
+            node = int.from_bytes(payload[3:5], "big")
+            size = int.from_bytes(payload[7:11], "big")
+            name = payload[11:].split(b"\0", 1)[0].decode()
+            self.writing = (node, name, size, bytearray())
+            return 0, node.to_bytes(2, "big")
+        if command == 0x02 and payload[1] == 0x01:
+            node, name, size, data = self.writing
+            chunk = payload[4:]
+            if not chunk:  # empty page: end of file; the device computes the checksum itself
+                assert len(data) == size, "the client didn't send the size it promised"
+                self.sounds[node] = (name, bytes(data), {"name": name, "channels": 1, "samplerate": 46875,
+                                                         "format": "s16", "crc": zlib.crc32(bytes(data))})
+                self.writing = None
+            else:
+                data.extend(chunk)
+            return 0, b""
+        if command == 0x07 and payload[1] == 0x01:
+            node = int.from_bytes(payload[2:4], "big")
+            values = json.loads(payload[4:].split(b"\0", 1)[0])
+            name, data, metadata = self.sounds[node]
+            self.sounds[node] = (name, data, {**metadata, **values})
+            return 0, b""
+        if command == 0x0B:
+            node = int.from_bytes(payload[1:3], "big")
+            name, data = self._file(node)
+            return 0, node.to_bytes(2, "big") + (1000).to_bytes(2, "big") + bytes([0x1D]) + len(data).to_bytes(4, "big") + name.encode() + b"\0"
+        if command == 0x06:
+            node = int.from_bytes(payload[1:3], "big")
+            if len(payload) != 3 or node not in self.sounds:
+                return 1, b"failed to delete"
+            del self.sounds[node]
             return 0, b""
         return 1, b"unknown"
 

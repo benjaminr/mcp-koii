@@ -1,23 +1,39 @@
 """
 The EP-133's sample library as koii sees it: a cached listing, downloads,
-auditions, and backups running in the background with progress events.
+auditions, backups running in the background with progress events, and
+uploads.
+
+Upload rules (enforced here, before anything is sent):
+- a complete backup must exist;
+- the slot must be empty, or hold a sound koii uploaded that hasn't changed since
+  (koii never overwrites or deletes anything else);
+- 16-bit audio at 46,875 Hz, mono or stereo, at most MAX_UPLOAD_SECONDS long;
+- after writing, the device's CRC-32 of the stored audio must match ours.
 
 All device file traffic goes through koii.files, one locked session at a time.
 """
 
+import json
 import logging
 import threading
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from koii.backup import BackupResult, Progress, backup_device, latest_backup
 from koii.events import EventBus
-from koii.files import DeviceFileError, DeviceFiles, Sound, pcm_to_wav
+from koii.files import DEVICE_SAMPLE_RATE, DeviceFileError, DeviceFiles, Sound, clean_sample_name, pcm_to_wav
 from koii.notation import note_name
 
 logger = logging.getLogger(__name__)
 
 SLOT_COUNT = 999
+MAX_UPLOAD_SECONDS = 20.0
+FIRST_SUGGESTED_SLOT = 600   # factory sounds sit below this; suggestions start here
+
+
+class UploadRefused(DeviceFileError):
+    """An upload or delete that koii won't do, explained."""
 
 
 def describe_sound(sound: Sound) -> Dict[str, Any]:
@@ -35,6 +51,7 @@ class DeviceLibrary:
     def __init__(self, events: EventBus, home: Path, client: Optional[DeviceFiles] = None):
         self.events = events
         self.backups = home / "backups"
+        self.uploads_path = home / "uploads.json"
         self.client = client or DeviceFiles()
         self._sounds: Optional[List[Sound]] = None
         self._job: Optional[threading.Thread] = None
@@ -52,8 +69,9 @@ class DeviceLibrary:
 
     def listing(self, refresh: bool = False) -> Dict[str, Any]:
         sounds = self.sounds(refresh)
+        ours = {slot for slot in self.uploads() if self._ours(slot, sounds)}
         return {
-            "sounds": [describe_sound(s) for s in sounds],
+            "sounds": [{**describe_sound(s), "ours": s.slot in ours} for s in sounds],
             "occupied": len(sounds), "empty": SLOT_COUNT - len(sounds),
             "bytes": sum(s.bytes for s in sounds),
         }
@@ -82,6 +100,95 @@ class DeviceLibrary:
         if len(sounds) > limit:
             lines.append(f"  … and {len(sounds) - limit} more (narrow it with a search)")
         return "\n".join(lines)
+
+    # -- uploads ----------------------------------------------------------------------
+
+    def uploads(self) -> Dict[int, Dict]:
+        """Sounds koii put on the device: slot -> {name, crc, uploaded}."""
+        if not self.uploads_path.exists():
+            return {}
+        return {int(slot): entry for slot, entry in json.loads(self.uploads_path.read_text()).items()}
+
+    def _record_upload(self, sound: Sound) -> None:
+        uploads = self.uploads()
+        uploads[sound.slot] = {"name": sound.name, "crc": sound.crc, "uploaded": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+        self._save_uploads(uploads)
+
+    def _save_uploads(self, uploads: Dict[int, Dict]) -> None:
+        self.uploads_path.parent.mkdir(parents=True, exist_ok=True)
+        self.uploads_path.write_text(json.dumps({str(k): v for k, v in sorted(uploads.items())}, indent=2))
+
+    def _ours(self, slot: int, sounds: List[Sound]) -> bool:
+        """True if the slot holds exactly the sound koii uploaded there."""
+        entry = self.uploads().get(slot)
+        current = next((s for s in sounds if s.slot == slot), None)
+        return bool(entry and current and current.crc is not None and current.crc == entry.get("crc"))
+
+    def suggest_slot(self) -> int:
+        """The first empty slot from FIRST_SUGGESTED_SLOT, else the first empty one."""
+        taken = {s.slot for s in self.sounds()}
+        for slot in list(range(FIRST_SUGGESTED_SLOT, SLOT_COUNT + 1)) + list(range(1, FIRST_SUGGESTED_SLOT)):
+            if slot not in taken:
+                return slot
+        raise UploadRefused("there are no empty slots on the device")
+
+    def upload(self, slot: int, pcm: bytes, name: str, channels: int = 1) -> Dict[str, Any]:
+        """Upload 16-bit little-endian PCM at 46,875 Hz, following the rules in the module docstring."""
+        if latest_backup(self.backups) is None:
+            raise UploadRefused("take a backup first (backup_device), so nothing can be lost")
+        if self.busy:
+            raise UploadRefused("wait for the backup to finish")
+        seconds = len(pcm) / (2 * channels * DEVICE_SAMPLE_RATE)
+        if seconds > MAX_UPLOAD_SECONDS:
+            raise UploadRefused(f"that's {seconds:.1f}s; koii uploads at most {MAX_UPLOAD_SECONDS:.0f}s per sound")
+        if not pcm:
+            raise UploadRefused("there's no audio to upload")
+        sounds = self.sounds(refresh=True)
+        occupied = next((s for s in sounds if s.slot == slot), None)
+        if occupied and not self._ours(slot, sounds):
+            raise UploadRefused(f"slot {slot} holds '{occupied.name}', which koii didn't put there; choose an empty slot "
+                                f"(e.g. {self.suggest_slot()})")
+        self.events.publish("upload", stage="writing", slot=slot, name=clean_sample_name(name))
+
+        def progress(done: int, total: int) -> None:
+            self.events.publish("upload", stage="writing", slot=slot, done=done, total=total)
+
+        sound = self.client.upload_sound(slot, pcm, name, channels, progress)
+        self._record_upload(sound)
+        self._sounds = None
+        self.events.publish("upload", stage="done", slot=slot, name=sound.name)
+        self.events.publish("samples", stage="changed")
+        return {**describe_sound(sound), "replaced": bool(occupied),
+                "message": f"uploaded '{sound.name}' to slot {slot} ({seconds:.2f}s), checked against the device's "
+                           f"checksum. To put it on a pad: press SOUND, choose the pad, then use − / + until the screen shows {slot}"}
+
+    def upload_file(self, path: str, slot: Optional[int] = None, name: Optional[str] = None,
+                    keep_stereo: bool = False) -> Dict[str, Any]:
+        """Upload a WAV file from disk, converted to the device's format."""
+        from koii.audio import wav_for_device
+        file = Path(path).expanduser()
+        if not file.is_file():
+            raise UploadRefused(f"no file at {file}")
+        try:
+            pcm, channels, seconds = wav_for_device(file, keep_stereo)
+        except Exception as error:  # wave raises a few different types for unreadable files
+            raise UploadRefused(f"couldn't read {file.name} as a PCM WAV file ({error})") from error
+        return self.upload(slot or self.suggest_slot(), pcm, name or file.stem, channels)
+
+    def delete_upload(self, slot: int) -> str:
+        """Delete a sound, but only one koii uploaded and that hasn't changed since."""
+        sounds = self.sounds(refresh=True)
+        if not any(s.slot == slot for s in sounds):
+            raise UploadRefused(f"slot {slot} is already empty")
+        if not self._ours(slot, sounds):
+            raise UploadRefused(f"slot {slot} isn't a sound koii uploaded; koii only deletes its own uploads")
+        self.client.delete_sound(slot)
+        uploads = self.uploads()
+        uploads.pop(slot, None)
+        self._save_uploads(uploads)
+        self._sounds = None
+        self.events.publish("samples", stage="changed")
+        return f"deleted koii's upload in slot {slot}"
 
     # -- backups --------------------------------------------------------------------
 

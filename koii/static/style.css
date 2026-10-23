@@ -574,3 +574,25 @@ div.ko-wide, div.ko-split, .ko-flat { cursor: default; }
 .sample-facts { display: grid; grid-template-columns: repeat(4, auto 1fr); gap: 4px 10px; margin: 12px 0 0; font-size: 12px; }
 .sample-facts dt { font-family: var(--num); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .sample-facts dd { margin: 0; }
+
+/* -- sound design ------------------------------------------------------------------ */
+
+.designer-panel { grid-column: 1 / -1; }
+.designer-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.designer-presets { margin: 0; }
+.file-btn { position: relative; overflow: hidden; }
+.file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.stereo-option { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+.designer-body { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(320px, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 1000px) { .designer-body { grid-template-columns: 1fr; } }
+.designer-controls { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.param-group { border: var(--line) solid var(--ink); border-radius: 3px; padding: 6px 10px 10px; margin: 0; background: #fff; }
+.param-group legend { font-family: var(--num); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; padding: 0 4px; }
+.param { display: grid; grid-template-columns: 70px 1fr 82px; gap: 8px; align-items: center; font-size: 12px; margin-top: 4px; }
+.param input[type="range"] { accent-color: var(--signal); width: 100%; }
+.param-name { color: var(--ink-2); }
+.param-value { font-size: 11px; text-align: right; white-space: nowrap; }
+.param-choice { margin-top: 4px; width: 100%; background: var(--paper); border: var(--line) solid var(--ink); border-radius: 3px; padding: 2px 4px; }
+.designer-output .screen-panel canvas { height: 150px; }
+.designer-readout { font-size: 12px; margin-top: 8px; color: var(--ink-2); }
+.slot-input { width: 72px; background: #fff; border: var(--line) solid var(--ink); border-radius: 3px; padding: 6px 8px; }

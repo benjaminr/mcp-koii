@@ -8,6 +8,7 @@ import { BRUSHES, Grid } from "./grid.js";
 import * as model from "./model.js";
 import { Notation } from "./notation.js";
 import { roleForName, roleForPad, roleForTrack } from "./roles.js";
+import { SoundDesigner } from "./designer.js";
 import { SampleBrowser } from "./samples.js";
 import { SoundScope } from "./sound.js";
 
@@ -83,6 +84,17 @@ const samples = new SampleBrowser({
   backup: $("#backup-btn"), cancel: $("#backup-cancel"), progress: $("#backup-progress"),
   fill: $("#backup-fill"), text: $("#backup-text"),
 }, (message, isError) => toast(message, isError));
+// The designer wires up its own controls; nothing else needs a handle on it.
+new SoundDesigner({
+  presets: $("#designer-presets"), controls: $("#designer-controls"), wave: $("#designer-wave"),
+  readout: $("#designer-readout"), preview: $("#designer-preview"), upload: $("#designer-upload"),
+  name: $("#designer-name"), slot: $("#designer-slot"), file: $("#designer-file"),
+  stereo: $("#designer-stereo"), randomise: $("#designer-randomise"),
+}, {
+  toast: (message, isError) => toast(message, isError),
+  suggestSlot: () => command("suggest_slot"),
+  onUploaded: () => samples.listing && samples.load(true),
+});
 const sound = new SoundScope({
   scope: $("#scope-canvas"),
   spectrum: $("#spectrum-canvas"),
