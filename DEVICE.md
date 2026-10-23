@@ -32,8 +32,8 @@ Each group has 12 pads laid out like a calculator keypad, and each pad is one MI
 | D | 72–83 | `D.` `D0` `DEnter` `D1` … `D9` |
 
 Pressing pads on the device and capturing its MIDI output confirmed `0` → 37, ENTER → 38,
-`1`–`9` → 39–47 on group A and `0` → 49 on group B. (`.` → 36 is from the official table;
-it didn't show up in that capture.)
+`1`–`9` → 39–47 on group A, and `.` → 48 and `0` → 49 on group B, so `.` is the first
+note of each group and groups are 12 notes apart.
 
 The third pad of the bottom row is the ENTER key. FX is a separate button for the punch-in
 effects. Older versions of this project mislabelled the pad as "FX", so `AFX` is still
