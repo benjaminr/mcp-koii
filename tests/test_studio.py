@@ -195,3 +195,14 @@ def test_export_writes_a_midi_file(studio, tmp_path):
     studio.save_pattern("v", "kick: x...x...x...x...")
     out = studio.export_midi("v x2", filename="my song")
     assert (tmp_path / "exports" / "my song.mid").exists() and "4.0s" in out
+
+
+def test_play_summary_counts_repeats(studio):
+    studio.connect()
+    studio.save_pattern("v", "@bpm 120\nkick: x...x...x...x...")
+    out = studio.play("v", repeat=2)
+    studio.stop()
+    assert "v ×2" in out and "total 4.0s" in out
+    out = studio.play("kick: x...x...x...x...", repeat=3)
+    studio.stop()
+    assert "pattern ×3" in out and "total 6.0s" in out

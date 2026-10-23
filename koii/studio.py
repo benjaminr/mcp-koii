@@ -93,14 +93,18 @@ class Studio:
     # -- building blocks ----------------------------------------------------
 
     def _sections(self, what: str, bpm: Optional[int]) -> tuple:
-        """Resolve pattern text, a saved name, 'a+b', a song or an arrangement into sections."""
+        """
+        Resolve pattern text, a saved name, 'a+b', a song or an arrangement into sections.
+
+        Returns (sections, label, pattern summary). The summary is only set for pattern text.
+        """
         if looks_like_pattern(what):
             pattern = self.library.parse(what)
             if bpm:
                 pattern.bpm = bpm
             return [layer([("pattern", pattern)])], "pattern", render_pattern(pattern)
         sections = expand(what, self.library.get_pattern, self.library.get_song, bpm)
-        return sections, what.strip(), _describe_sections(sections)
+        return sections, what.strip(), ""
 
     # -- patterns -----------------------------------------------------------
 
@@ -110,10 +114,11 @@ class Studio:
     def play(self, what: str, repeat: int = 1, loop: bool = False, bpm: Optional[int] = None) -> str:
         if not 1 <= repeat <= 999:
             raise ValueError("repeat must be 1-999")
-        sections, label, description = self._sections(what, bpm)  # validate before needing a device
+        sections, label, pattern_summary = self._sections(what, bpm)  # validate before needing a device
         self._require_port()
-        message = self.player.play(sections * repeat, self.channel, loop, label)
-        return f"{message}\n{description}"
+        played = sections * repeat
+        message = self.player.play(played, self.channel, loop, label)
+        return "\n".join(part for part in (message, pattern_summary, _describe_sections(played)) if part)
 
     def stop(self) -> str:
         return "stopped" if self.player.stop() else "nothing was playing"
