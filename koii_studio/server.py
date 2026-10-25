@@ -15,9 +15,9 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Union
 from mcp.server.fastmcp import FastMCP
 
 from koii_studio import device
-from koii_studio.library import setting
+from koii_studio.config import setting
 from koii_studio.studio import Studio
-from koii_studio.visualiser import DEFAULT_PORT, Visualiser, open_in_browser
+from koii_studio.visualiser import Visualiser, open_in_browser, web_port
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -51,7 +51,7 @@ opens it. Without a device, connect(port="simulator") plays sound in the browser
 """
 
 studio = Studio()
-visualiser = Visualiser(studio, port=int(setting("WEB_PORT", str(DEFAULT_PORT))))
+visualiser = Visualiser(studio, port=web_port())
 atexit.register(lambda: studio.disconnect())
 
 
@@ -320,7 +320,7 @@ def list_packs() -> str:
     """
     packs = studio.packs.list()
     if not packs:
-        return "no packs in ~/.koii-studio/packs"
+        return f"no packs in {studio.packs.folder}"
     lines = []
     for pack in packs:
         where = f"installed in project {pack['installed']['project']}" if pack["installed"] else "not on the device"

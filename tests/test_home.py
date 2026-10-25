@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from koii_studio.library import default_home, setting
+from koii_studio.config import default_home, setting
+from koii_studio.library import Library
 
 
 @pytest.fixture
@@ -17,20 +18,28 @@ def home(tmp_path, monkeypatch):
 
 def test_files_from_before_the_rename_move_to_the_new_folder(home):
     (home / ".koii").mkdir()
-    (home / ".koii" / "library.json").write_text("{}")
+    (home / ".koii" / "designs.json").write_text("{}")
 
-    folder = default_home()
+    library = Library()
 
-    assert folder == home / ".koii-studio"
-    assert (folder / "library.json").read_text() == "{}"
+    assert library.home == home / ".koii-studio"
+    assert (library.home / "designs.json").read_text() == "{}"
     assert not (home / ".koii").exists()
+
+
+def test_looking_up_the_home_folder_moves_nothing(home):
+    (home / ".koii").mkdir()
+
+    assert default_home() == home / ".koii-studio"
+    assert (home / ".koii").exists()
 
 
 def test_an_existing_new_folder_is_never_replaced_by_the_old_one(home):
     (home / ".koii").mkdir()
     (home / ".koii-studio").mkdir()
 
-    assert default_home() == home / ".koii-studio"
+    Library()
+
     assert (home / ".koii").exists()
 
 
@@ -41,5 +50,7 @@ def test_settings_still_answer_to_their_names_from_before_the_rename(home, monke
     monkeypatch.setenv("KOII_STUDIO_WEB_PORT", "9100")
     assert setting("WEB_PORT", "8133") == "9100"
 
+
+def test_a_home_set_with_the_old_setting_is_still_used(home, monkeypatch):
     monkeypatch.setenv("KOII_HOME", str(home / "elsewhere"))
     assert default_home() == home / "elsewhere"

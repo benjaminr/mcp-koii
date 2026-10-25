@@ -2,8 +2,10 @@
 // straight out of the EP-133 (it's a USB audio output too), so a sound can be
 // heard through the device's own outputs before it's uploaded.
 
+import { STORAGE_PREFIX } from "./storage-rename.js";
+
 const DEVICE_LABEL = /ep-?133|k\.?o\.? ?ii|teenage/i;
-const STORAGE_KEY = "koii-studio.designer.output";
+const STORAGE_KEY = `${STORAGE_PREFIX}designer.output`;
 
 export function base64ToBytes(encoded) {
   const binary = atob(encoded);

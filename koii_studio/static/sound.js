@@ -2,6 +2,8 @@
 // simulator's voices) is playing, as LED columns of spectrum and stereo meters. It only
 // listens: nothing is played back, so you never hear anything twice.
 
+import { STORAGE_PREFIX } from "./storage-rename.js";
+
 const LOWEST_HZ = 25;
 const HIGHEST_HZ = 18000;
 const METER_FLOOR_DB = -60;
@@ -9,7 +11,7 @@ const CLIP_LEVEL = 0.995;
 const PEAK_HOLD_SECONDS = 1.2;
 const PEAK_FALL_DB_PER_SECOND = 24;
 const DEVICE_LABEL = /ep-?133|k\.?o/i;
-const STORAGE_KEY = "koii-studio.sound.input";
+const STORAGE_KEY = `${STORAGE_PREFIX}sound.input`;
 const STRIP_COLUMN_PX = 5;
 const STRIP_SEGMENT_PX = 4;
 const STRIP_FLOOR_DB = -90;      // the range the columns show: quiet sounds still light a segment

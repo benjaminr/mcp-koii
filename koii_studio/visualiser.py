@@ -29,7 +29,8 @@ from typing import Any, Callable, Dict, Optional
 from urllib.parse import parse_qs, urlparse
 
 from koii_studio.files import DeviceFileError
-from koii_studio.library import LibraryError, setting
+from koii_studio.config import setting
+from koii_studio.library import LibraryError
 from koii_studio.notation import NotationError
 from koii_studio.studio import NotConnected, Studio
 
@@ -37,6 +38,11 @@ logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).parent / "static"
 DEFAULT_PORT = 8133
+
+
+def web_port() -> int:
+    """The port to serve on: $KOII_STUDIO_WEB_PORT, or DEFAULT_PORT."""
+    return int(setting("WEB_PORT", str(DEFAULT_PORT)))
 PORT_ATTEMPTS = 10
 HEARTBEAT_SECONDS = 15
 COMMAND_HEADER = "X-Koii-Studio"
@@ -423,7 +429,7 @@ def _make_handler(visualiser: Visualiser):
 def main() -> None:
     """Run the visualiser on its own (without Claude): python -m koii_studio.visualiser"""
     parser = argparse.ArgumentParser(description="koii studio for the EP-133 K.O. II")
-    parser.add_argument("--port", type=int, default=int(setting("WEB_PORT", str(DEFAULT_PORT))))
+    parser.add_argument("--port", type=int, default=web_port())
     parser.add_argument("--no-browser", action="store_true", help="don't open a browser window")
     parser.add_argument("--no-connect", action="store_true", help="don't connect to the EP-133 on start")
     options = parser.parse_args()

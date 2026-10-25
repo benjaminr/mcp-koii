@@ -1,7 +1,7 @@
 // The visualiser page: wires the device view, editor, library, arranger and
 // activity feed to the server's commands and live events.
 
-import "./storage-rename.js";   // first: older saved settings move to their new keys
+import { STORAGE_PREFIX } from "./storage-rename.js";   // first: older saved settings move to their new keys
 import { command, getState, listen, midiUrl, musicxmlUrl } from "./api.js";
 import { BrowserSynth } from "./audio.js";
 import { Device, Keys, PAD_KEYS, noteName, noteToPad } from "./device.js";
@@ -19,14 +19,14 @@ import { SampleBrowser } from "./samples.js";
 import { LiveStrip, permittedDeviceInput } from "./sound.js";
 
 const $ = (selector) => document.querySelector(selector);
-const STORAGE_KEY = "koii-studio.editor";
-const KEY_STORAGE_KEY = "koii-studio.grid-key";
-const VIEW_STORAGE_KEY = "koii-studio.view";
+const STORAGE_KEY = `${STORAGE_PREFIX}editor`;
+const KEY_STORAGE_KEY = `${STORAGE_PREFIX}grid-key`;
+const VIEW_STORAGE_KEY = `${STORAGE_PREFIX}view`;
 const LIBRARY_REFRESH_MS = 200;
 const VIEWS = ["beat", "song", "sounds", "device"];
 // Space plays what the view is about; Sounds plays the sound being designed (designer.js handles that).
 const VIEW_FOCUS = { beat: "pattern", song: "song" };
-const LISTEN_STORAGE_KEY = "koii-studio.sound.listen";
+const LISTEN_STORAGE_KEY = `${STORAGE_PREFIX}sound.listen`;
 const CHECK_DELAY_MS = 250;
 const LIVE_DELAY_MS = 300;
 const ARRANGEMENT_DELAY_MS = 350;
@@ -855,7 +855,7 @@ function startViews() {
   for (const main of document.querySelectorAll("main.view")) {
     const view = main.dataset.view;
     layouts[view] = new LayoutEditor({ page: main, bar: $("#layout-bar"), toggle: $("#layout-btn"),
-                                       key: `koii-studio.layout.v2.${view}`, isActive: () => state.view === view });
+                                       key: `${STORAGE_PREFIX}layout.v2.${view}`, isActive: () => state.view === view });
   }
   for (const tab of document.querySelectorAll(".view-tab")) tab.addEventListener("click", () => setView(tab.dataset.view));
   window.addEventListener("hashchange", () => setView(location.hash.slice(1)));

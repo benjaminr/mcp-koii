@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Entry point kept at the repo root so `mcp install koii_studio_server.py` keeps working."""
+"""Entry point at the repo root, for `mcp install koii_studio_server.py`."""
 
 from koii_studio.server import main, server  # noqa: F401
 

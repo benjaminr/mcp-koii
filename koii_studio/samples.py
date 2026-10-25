@@ -6,7 +6,7 @@ uploads.
 Upload rules (enforced here, before anything is sent):
 - a complete backup must exist;
 - the slot must be empty, or hold a sound koii studio uploaded that hasn't changed since
-  (koii studio never overwrites or deletes anything else);
+  (it never overwrites or deletes anything else);
 - 16-bit audio at 46,875 Hz, mono or stereo, at most MAX_UPLOAD_SECONDS long;
 - after writing, the device's CRC-32 of the stored audio must match ours.
 
@@ -208,7 +208,7 @@ class DeviceLibrary:
         """Change the sample settings (root, loop, play mode …) of a sound koii studio uploaded."""
         sounds = self.sounds(refresh=True)
         if not self._ours(slot, sounds):
-            raise UploadRefused(f"slot {slot} isn't a sound koii studio uploaded; koii studio only changes its own uploads")
+            raise UploadRefused(f"slot {slot} isn't a sound koii studio uploaded; it only changes its own uploads")
         stored = self.client.set_sound_settings(slot, settings)
         self._sounds = None
         self.events.publish("samples", stage="changed")
@@ -220,7 +220,7 @@ class DeviceLibrary:
         if not any(s.slot == slot for s in sounds):
             raise UploadRefused(f"slot {slot} is already empty")
         if not self._ours(slot, sounds):
-            raise UploadRefused(f"slot {slot} isn't a sound koii studio uploaded; koii studio only deletes its own uploads")
+            raise UploadRefused(f"slot {slot} isn't a sound koii studio uploaded; it only deletes its own uploads")
         self.client.delete_sound(slot)
         uploads = self.uploads()
         uploads.pop(slot, None)

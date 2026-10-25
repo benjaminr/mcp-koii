@@ -1,7 +1,7 @@
 """
 Persistent storage for patterns, songs and kit aliases.
 
-Everything lives in one JSON file (default ~/.koii-studio/library.json, or $KOII_STUDIO_HOME),
+Everything lives in one JSON file, library.json in the home folder (see koii_studio.config),
 so work survives server restarts and can be versioned or shared.
 """
 
@@ -14,33 +14,10 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from koii_studio import device
+from koii_studio.config import default_home, move_old_home
 from koii_studio.notation import Issue, NotationError, Pattern, parse_arrangement, parse_pattern, parse_target
 
 _NAME_RE = re.compile(r"^[A-Za-z][\w\-]{0,63}$")
-
-
-HOME_FOLDER = ".koii-studio"
-OLD_HOME_FOLDER = ".koii"   # before the project was renamed koii studio
-
-
-def setting(name: str, default: str) -> str:
-    """An environment setting, KOII_STUDIO_<name>, or its name from before the rename, KOII_<name>."""
-    return os.environ.get(f"KOII_STUDIO_{name}", os.environ.get(f"KOII_{name}", default))
-
-
-def default_home() -> Path:
-    """
-    Where the library, designs, packs and backups live: $KOII_STUDIO_HOME, or ~/.koii-studio.
-    A ~/.koii folder from before the rename is moved there the first time.
-    """
-    configured = setting("HOME", "")
-    if configured:
-        return Path(configured)
-    home = Path.home() / HOME_FOLDER
-    old_home = Path.home() / OLD_HOME_FOLDER
-    if not home.exists() and old_home.is_dir():
-        old_home.rename(home)
-    return home
 
 
 class LibraryError(ValueError):
@@ -49,6 +26,8 @@ class LibraryError(ValueError):
 
 class Library:
     def __init__(self, home: Optional[Path] = None):
+        if not home:
+            move_old_home()   # only for the default home: a folder passed in is used as it is
         self.home = Path(home) if home else default_home()
         self.path = self.home / "library.json"
         self.patterns: Dict[str, Dict] = {}
