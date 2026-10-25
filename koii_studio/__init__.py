@@ -8,4 +8,4 @@ koii studio: make beats and songs on a Teenage Engineering EP-133 K.O. II over M
 - koii_studio.studio    ties it together; koii_studio.server exposes it over MCP
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

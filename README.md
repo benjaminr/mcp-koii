@@ -2,7 +2,7 @@
 
 Make beats, songs and sounds for the Teenage Engineering EP-133 K.O. II, with Claude.
 
-<img src="./mcp.jpg" width="318"><img src="./koii.jpg" width="200">
+<img src="./screenshot.jpg" alt="koii studio: the simulated EP-133, a boom-bap pattern with a bassline in the grid editor, and the pattern list" width="900">
 
 An MCP server that lets Claude make beats and songs with you on an EP-133 K.O. II over MIDI.
 You talk about the music; Claude writes patterns in a small, strict text notation, plays
@@ -135,15 +135,16 @@ separately.
   the corner) and hide them; reorder or hide the parts inside them; and drag the line
   between two-column areas. **▾** collapses a module at any time. The layout is kept in
   this browser; **reset** goes back to the default.
-- **Packs:** demos and kits in `~/.koii-studio/packs`, each with its samples, a project's pad
+- **Packs:** demos and kits in `~/.koii-studio/packs` (none come with koii studio; ask Claude
+  to build one), each with its samples, a project's pad
   layout, patterns, songs and credits. **Install** uploads the samples to empty slots
   (reusing any already there), opens the project and fills its pads, and adds the songs;
   **remove samples** deletes them to free space and empties their pads, keeping the songs.
 - **Projects:** the pad settings panel shows which project is open and opens another.
 - **Pad settings:** click a pad on the simulated device to see what it plays on the real one,
   and change its sound slot, MIDI channel, play mode or level there, live. This is how a
-  pad becomes a melodic voice: give a keys sound channel 3, and patterns' `chords` track
-  (an alias for ch3) plays it in tune. See [DEVICE.md](DEVICE.md#playing-pitches-basslines-chords-melodies).
+  pad becomes a melodic voice: give a keys sound channel 3, name the channel once with
+  `set_alias("chords", "ch3")`, and a pattern's `chords` track plays it in tune. See [DEVICE.md](DEVICE.md#playing-pitches-basslines-chords-melodies).
 - **No device?** Choose *Browser simulator* (top right) and the page plays synthesised
   drums and bass itself.
 
@@ -173,8 +174,9 @@ own. Mistakes come back as errors with line and column, e.g.
 
 ## Device setup
 
-Drums need no setup. For basslines and melodies, assign the pad to a MIDI channel in
-Sound Edit (OS 2.0+). Dynamics (`o`, `X`, `1`–`9`) work with no setup. Details, with
+Drums need no setup. For basslines and melodies, give the pad its own MIDI channel: koii studio
+does it over USB (`set_pad`, or click the pad in the Device view), or set it by hand in Sound
+Edit (OS 2.0+). Dynamics (`o`, `X`, `1`–`9`) work with no setup. Details, with
 sources and what has been checked on hardware, are in **[DEVICE.md](DEVICE.md)**.
 
 ## Tools
@@ -229,12 +231,27 @@ together), `events` (live updates), `visualiser` (the web server, with the page 
 - [Teenage Engineering](https://teenage.engineering/) for the EP-133 K.O. II.
 - [Anthropic](https://www.anthropic.com/) for Claude and the Model Context Protocol.
 - [MIDO](https://mido.readthedocs.io/) for MIDI handling.
+- [ep-series-sysex](https://github.com/kmorrill/ep-series-sysex) by Kevin Morrill, for the
+  reverse-engineered file protocol behind samples, backups, packs and pad settings (MIT; see
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+
+## Use at your own risk
+
+koii studio is a hobby project, provided as is, with no warranty (see [LICENSE](LICENSE)).
+Besides playing notes over MIDI, it writes to the EP-133's own storage through a private
+protocol that teenage engineering doesn't document or support: uploading and deleting
+samples, and changing pads and the open project. It takes care to do that safely (a
+complete backup before any upload, only its own uploads changed or deleted, every write read
+back and checked), but a firmware update or an unexpected reply could still lose sounds,
+projects or settings, or leave the device needing a restart. Keep your own backups, close
+TE's EP Sample Tool while koii studio is running, and use it at your own risk.
 
 ## Licence
 
 koii studio is free software under the [MIT licence](LICENSE): use it, change it and share it,
 including commercially, as long as the copyright notice stays with it.
 
-The sample packs' recordings are public domain; their sources are credited in each
-`pack.json`. koii studio isn't affiliated with or endorsed by teenage engineering; EP-133 and
+Audio isn't part of koii studio: packs bring their own, with their sources credited in each
+`pack.json`. The demo packs made while building it use only public-domain recordings.
+Screenshot: koii studio's own page. koii studio isn't affiliated with or endorsed by teenage engineering; EP-133 and
 K.O. II are their trademarks.

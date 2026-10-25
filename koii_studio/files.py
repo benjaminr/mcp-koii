@@ -3,8 +3,9 @@ The EP-133's file system over SysEx: the sample library and project archives.
 
 This is the private protocol TE's EP Sample Tool uses. It isn't documented by
 TE; this follows the community reverse engineering in kmorrill/ep-series-sysex
-(MIT licence, verified on OS 2.5.1), docs/sysex-protocol.md and
-docs/file-protocol.md. Safety rules from that work, all enforced here:
+(MIT licence, see THIRD_PARTY_NOTICES.md; verified on OS 2.5.1), in particular its
+docs/sysex-protocol.md and docs/file-protocol.md. Safety rules from that work, all
+enforced here:
 
 - The device's file system handles one session at a time; overlapping
   sessions (even read-only) freeze it until it's power-cycled. Every session

@@ -19,14 +19,14 @@ What this project relies on, where each fact comes from, and how sure we are.
 | Notes | Receives on all channels, sends on channel 1 | official; sending checked | plays pads on channel 1 by default |
 | Notes | Incoming velocity is respected even with pad velocity off | hardware | `x X o 1–9` dynamics need no setup |
 | Notes | Pad presses go out at a fixed velocity 100 while pad velocity is off | hardware | shown live in the visualiser |
-| Pitch | A pad can have its own MIDI channel (Sound Edit → MIDI, knob X) and root note (knob Y) | official; channel checked | pitched tracks play on `chN` |
+| Pitch | A pad can have its own MIDI channel (Sound Edit → MIDI, knob X, or over USB) and root note (knob Y) | official; channel checked | pitched tracks play on `chN`; `set_pad` sets the channel |
 | Pitch | That pad still plays from its own pad note on channel 1 too | hardware | the same pad works as drum and bassline |
 | Pitch | Pads without their own channel hear every channel, so pitched notes 36–83 also fire them | hardware | warns about clashing notes |
 | Voices | 16 mono / 12 stereo voices; fewer with time-stretched, stereo or high-pitched samples | official | warns when a step starts more than 12 notes |
 | Voices | ONESHOT pads play the whole sample and ignore note-off; KEY and LEGATO stop on note-off | official | holds (`-`) only matter in KEY/LEGATO |
 | Control | Program change no longer switches sounds (since OS 2.0.2) | official | not used |
 | Control | Bank select (CC 0/32) reaches sounds 1–999 | official | not used |
-| Control | OS 2.5: CC 64 sustain for KEY/LEGATO pads; CC 12/13 drive FX X/Y | official | FX control planned |
+| Control | OS 2.5: CC 64 sustain for KEY/LEGATO pads; CC 12/13 drive FX X/Y | official; FX not confirmed (see [Effects](#effects)) | not used |
 | Sync | MIDI clock in/out, sync 1/8, 1/16 or 24 PPQN, MIDI thru | official | koii studio plays notes itself and sends no clock |
 | Samples | 999 slots, 128 MB (64 MB on early units) | official | |
 | Samples | Library read over the private file protocol (SysEx): list, metadata, download, audition | hardware (community protocol) | `list_device_sounds`, the samples module, backups |
@@ -36,7 +36,7 @@ What this project relies on, where each fact comes from, and how sure we are.
 | Samples | Each sample has its own root note (e.g. slot 401 "s95x round" is F1, most are C4) | hardware | explains basslines sounding transposed |
 | Samples | The file system handles one session at a time; overlapping sessions freeze it until power-cycled | community | every session holds `/tmp/ep-device.lock` |
 | Samples | Uploading works: 433-byte pages, about 5 KB/s; the device computes the CRC-32 itself, so reading it back proves the sound arrived intact | hardware | uploads only to empty slots or koii studio's own, after a backup |
-| Samples | Sample names are at most 20 ASCII characters | community | names are trimmed |
+| Samples | Sample names are at most 16 ASCII characters; 17 or more are refused with "invalid length" (OS 2.5) | hardware (the community notes say 20) | names are trimmed to 16 |
 | Samples | Each sample's settings are JSON metadata: `sound.rootnote`, `sound.pitch` (fine tune, semitones), `sound.playmode` (`oneshot`, `key`, `legato`), `sound.loopstart`/`loopend` (frames; −1 for none), `envelope.attack`/`release` (0–255), `sound.amplitude` (0–100), `time.mode` (`off` or `bpm`), `sound.bpm`, `sound.bars` | hardware | designed sounds upload with these set |
 | Samples | Settings can be changed without touching the audio; the CRC stays the same | hardware | `change_sound_settings` |
 | Samples | Enums must be written as strings, and `sound.playmode` only together with `envelope.release` | hardware (community rule, confirmed) | enforced before sending |
@@ -107,7 +107,8 @@ A pad hit (note 36–83) always plays the pad's sample at its recorded pitch. To
 sample at different pitches from this project:
 
 1. Pick the pad that holds the sound, e.g. a bass on `B.`.
-2. Sound Edit → MIDI page → knob X: set that pad to a free channel, e.g. **2**.
+2. Give that pad a free channel, e.g. **2**: ask Claude (`set_pad("B.", channel=2)`), click the
+   pad in the visualiser's Device view, or on the device: Sound Edit → MIDI page → knob X.
 3. Use the same channel in your pattern: `@map bass = ch2` (or once for every pattern:
    `set_alias("bass", "ch2")`).
 4. Write the line: `bass: x..x..x.` and `bass notes: C2 C2 G1`.
@@ -172,6 +173,21 @@ but **incoming MIDI velocity was still respected** (soft and loud kicks, and a 1
 ramp, were clearly audible). So `o`, `X` and `1`–`9` work without changing any setting.
 To make the pads themselves velocity-sensitive: SHIFT + ERASE for system settings, type
 **301**, then ENTER.
+
+## Effects
+
+**Tested on hardware (OS 2.5, project 9), not yet working:** sweeping CC 12 and CC 13 (FX X
+and Y, said to be added in OS 2.5) from 0 to 127 and back on channel 1, under a looping
+pattern, made no audible change. That may be because no effect was selected, or the pads'
+FX sends were at zero, or the firmware doesn't map those CCs; it hasn't been narrowed down.
+
+- Which effect is selected, and each pad's FX send (the →FX knob mode), aren't in the pad,
+  group or project settings readable over USB, so koii studio can't read or set them.
+- Turning the effect knobs on the device sends no MIDI, so the device can't tell us which
+  controllers it uses.
+- When playback stops, the EP-133 sends "all sound off" (CC 120) on channels 2–12.
+- Holding MAIN and pressing a pad selects a **scene** (the screen shows `S.09`), not a project,
+  on this firmware. Projects can be opened over USB (`open_project`, or the Device view).
 
 ## Other MIDI facts
 

@@ -288,8 +288,9 @@ def set_pad(pad: str, sound: Optional[int] = None, channel: Optional[str] = None
     keep it. The device's read-back is checked, and undo_pad_change puts the last change back.
 
     A pad on its own channel plays pitched tracks on that channel: give a keys sound channel 3,
-    and 'chords: …' with 'chords notes: C3+E3+G3' (alias chords = ch3) plays it in tune. For
-    pitches from C2 up, the EP-133's system MIDI channel should be 1 (code 111; see DEVICE.md).
+    and 'chords: …' with 'chords notes: C3+E3+G3' plays it in tune (after set_alias('chords', 'ch3'),
+    or with '@map chords = ch3' in the pattern). For pitches from C2 up, the EP-133's system MIDI
+    channel should be 1 (code 111; see DEVICE.md).
     """
     if channel is not None and str(channel).strip().lower() not in ("none", "off", "0"):
         try:
