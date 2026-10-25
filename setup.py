@@ -6,6 +6,7 @@ setup(
     version="0.4.0",
     description="MCP Interface for EP-133 K.O. II",
     author="Ben Rowell",
+    license="MIT",
     packages=find_packages(exclude=["tests"]),
     py_modules=["koii_server"],
     package_data={"koii": ["static/*"]},

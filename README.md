@@ -227,3 +227,12 @@ together), `events` (live updates), `visualiser` (the web server, with the page 
 - [Teenage Engineering](https://teenage.engineering/) for the EP-133 K.O. II.
 - [Anthropic](https://www.anthropic.com/) for Claude and the Model Context Protocol.
 - [MIDO](https://mido.readthedocs.io/) for MIDI handling.
+
+## Licence
+
+koii is free software under the [MIT licence](LICENSE): use it, change it and share it,
+including commercially, as long as the copyright notice stays with it.
+
+The sample packs' recordings are public domain; their sources are credited in each
+`pack.json`. koii isn't affiliated with or endorsed by teenage engineering; EP-133 and
+K.O. II are their trademarks.
