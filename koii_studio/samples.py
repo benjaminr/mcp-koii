@@ -56,6 +56,9 @@ class DeviceLibrary:
         self.client = client or DeviceFiles()
         self._sounds: Optional[List[Sound]] = None
         self._job: Optional[threading.Thread] = None
+        # Long upload jobs (a kit, a pack) pick free slots as they go, so only one may run at a time.
+        self._batch = threading.Lock()
+        self._batch_owner = ""
         self._cancel = threading.Event()
         self._progress: Optional[Progress] = None
         self._last_result: Optional[BackupResult] = None
@@ -70,7 +73,8 @@ class DeviceLibrary:
 
     def listing(self, refresh: bool = False) -> Dict[str, Any]:
         sounds = self.sounds(refresh)
-        ours = {slot for slot in self.uploads() if self._ours(slot, sounds)}
+        uploads = self.uploads()
+        ours = {slot for slot in uploads if self._ours(slot, sounds, uploads)}
         return {
             "sounds": [{**describe_sound(s), "ours": s.slot in ours} for s in sounds],
             "occupied": len(sounds), "empty": SLOT_COUNT - len(sounds),
@@ -119,6 +123,16 @@ class DeviceLibrary:
         self.uploads_path.parent.mkdir(parents=True, exist_ok=True)
         self.uploads_path.write_text(json.dumps({str(k): v for k, v in sorted(uploads.items())}, indent=2))
 
+    def claim_batch(self, owner: str) -> None:
+        """Claim the device for a long upload job (released by release_batch), or refuse if one is running."""
+        if not self._batch.acquire(blocking=False):
+            raise UploadRefused(f"{self._batch_owner} is still writing to the device; wait for it to finish")
+        self._batch_owner = owner
+
+    def release_batch(self) -> None:
+        self._batch_owner = ""
+        self._batch.release()
+
     def is_ours(self, slot: int, sounds: Optional[List[Sound]] = None) -> bool:
         """
         True if the slot holds a sound koii studio uploaded and nobody has changed since. Pass a listing
@@ -126,9 +140,9 @@ class DeviceLibrary:
         """
         return self._ours(slot, sounds if sounds is not None else self.sounds(refresh=True))
 
-    def _ours(self, slot: int, sounds: List[Sound]) -> bool:
+    def _ours(self, slot: int, sounds: List[Sound], uploads: Optional[Dict[int, Dict]] = None) -> bool:
         """True if the slot holds exactly the sound koii studio uploaded there (or left there unfinished)."""
-        entry = self.uploads().get(slot)
+        entry = (uploads if uploads is not None else self.uploads()).get(slot)
         current = next((s for s in sounds if s.slot == slot), None)
         if not (entry and current and current.crc is not None):
             return False
@@ -143,10 +157,12 @@ class DeviceLibrary:
         raise UploadRefused("there are no empty slots on the device")
 
     def upload(self, slot: int, pcm: bytes, name: str, channels: int = 1,
-               settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+               settings: Optional[Dict[str, Any]] = None, sounds: Optional[List[Sound]] = None) -> Dict[str, Any]:
         """
         Upload 16-bit little-endian PCM at 46,875 Hz, following the rules in the module docstring.
         settings is extra sample metadata in the device's own keys (see koii_studio.synth.instrument).
+        A job holding the batch claim (see claim_batch) can pass the listing it read at the start
+        instead of the device being read again for every upload.
         """
         if latest_backup(self.backups) is None:
             raise UploadRefused("take a backup first (backup_device), so nothing can be lost")
@@ -157,7 +173,8 @@ class DeviceLibrary:
             raise UploadRefused(f"that's {seconds:.1f}s; koii studio uploads at most {MAX_UPLOAD_SECONDS:.0f}s per sound")
         if not pcm:
             raise UploadRefused("there's no audio to upload")
-        sounds = self.sounds(refresh=True)
+        if sounds is None:
+            sounds = self.sounds(refresh=True)
         occupied = next((s for s in sounds if s.slot == slot), None)
         if occupied and not self._ours(slot, sounds):
             raise UploadRefused(f"slot {slot} holds '{occupied.name}', which koii studio didn't put there; choose an empty slot "

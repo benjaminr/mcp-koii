@@ -100,6 +100,13 @@ def test_silence_is_reported_with_advice(device, monkeypatch):
         client.list_sounds()
 
 
+def test_a_file_shorter_than_the_device_said_stops_the_read(device):
+    fake, client = device
+    fake.misbehave = "short"
+    with pytest.raises(DeviceFileError, match="ended after"):
+        client.read_sound(1)
+
+
 def test_slots_are_checked_before_anything_is_sent(device):
     fake, client = device
     with pytest.raises(DeviceFileError, match="1–999"):

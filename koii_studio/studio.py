@@ -18,7 +18,7 @@ from koii_studio import device
 from koii_studio.events import EventBus
 from koii_studio.library import Library, LibraryError
 from koii_studio.notation import (
-    NotationError, looks_like_pattern, note_name, parse_target, pattern_to_dict, render_pattern,
+    NotationError, looks_like_pattern, note_name, parse_target, pattern_to_dict, render_pattern, tempo_override,
 )
 from koii_studio.player import Player
 from koii_studio.packs import PackStore
@@ -117,7 +117,7 @@ class Studio:
         if not ports:
             raise NotConnected("no MIDI outputs found. Is the EP-133 plugged in over USB and switched on? "
                                "macOS only shows a running program devices that were there when it started, "
-                               "so if you plugged it in since, restart koii")
+                               "so if you plugged it in since, restart koii studio")
         if port:
             matches = [p for p in ports if p == port] or [p for p in ports if port.lower() in p.lower()]
             if not matches:
@@ -181,6 +181,7 @@ class Studio:
         """
         if looks_like_pattern(what):
             pattern = self.library.parse(what)
+            bpm = tempo_override(bpm)
             if bpm:
                 pattern.bpm = bpm
             return [layer([("pattern", pattern)])], "pattern", render_pattern(pattern)

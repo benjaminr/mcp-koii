@@ -9,7 +9,7 @@ one pass.
 import re
 from dataclasses import dataclass, field
 from fractions import Fraction
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from koii_studio import device
 
@@ -65,6 +65,15 @@ class NotationError(ValueError):
     def __init__(self, issues: List[Issue]):
         self.issues = issues
         super().__init__("\n".join(str(i) for i in issues))
+
+
+def tempo_override(bpm: Any) -> Optional[int]:
+    """A tempo given to play or save at (None or 0: the patterns' own), checked like @bpm."""
+    if bpm in (None, "", 0):
+        return None
+    if isinstance(bpm, bool) or not str(bpm).isdigit() or not BPM_RANGE[0] <= int(bpm) <= BPM_RANGE[1]:
+        raise NotationError([Issue(0, None, f"bpm needs a whole number from {BPM_RANGE[0]} to {BPM_RANGE[1]}, not {bpm!r}")])
+    return int(bpm)
 
 
 @dataclass(frozen=True)

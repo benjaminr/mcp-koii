@@ -86,12 +86,13 @@ class FakeEP133:
             node = int.from_bytes(payload[2:4], "big")
             name, data = self._file(node)
             self.open_node = node
-            return 0, node.to_bytes(2, "big") + bytes([0x05]) + len(data).to_bytes(4, "big") + name.encode() + b"\0"
+            size = len(data) + (files.GET_PAGE_BYTES if self.misbehave == "short" else 0)   # claims more than it has
+            return 0, node.to_bytes(2, "big") + bytes([0x05]) + size.to_bytes(4, "big") + name.encode() + b"\0"
         if command == 0x03 and payload[1] == 0x01:
             page = int.from_bytes(payload[2:4], "big")
             data = self._file(self.open_node)[1]
             chunk = data[page * files.GET_PAGE_BYTES:(page + 1) * files.GET_PAGE_BYTES]
-            assert chunk, "the client read past the end of the file"
+            assert chunk or self.misbehave == "short", "the client read past the end of the file"
             return 0, page.to_bytes(2, "big") + chunk
         if command == 0x05:
             return 0, b""

@@ -41,8 +41,12 @@ DEFAULT_PORT = 8133
 
 
 def web_port() -> int:
-    """The port to serve on: $KOII_STUDIO_WEB_PORT, or DEFAULT_PORT."""
-    return int(setting("WEB_PORT", str(DEFAULT_PORT)))
+    """The port to serve on: $KOII_STUDIO_WEB_PORT, or DEFAULT_PORT if it isn't set or isn't a port number."""
+    value = setting("WEB_PORT", str(DEFAULT_PORT))
+    if value.isdigit() and 0 < int(value) < 65536:
+        return int(value)
+    logger.warning("KOII_STUDIO_WEB_PORT=%r isn't a port number; using %d", value, DEFAULT_PORT)
+    return DEFAULT_PORT
 PORT_ATTEMPTS = 10
 HEARTBEAT_SECONDS = 15
 COMMAND_HEADER = "X-Koii-Studio"

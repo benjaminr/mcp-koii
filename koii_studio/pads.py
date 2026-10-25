@@ -35,6 +35,9 @@ PLAY_MODES = ("oneshot", "key", "legato")
 # The device wants a release with every play-mode change. When none is given, a new mode
 # gets these: 255 plays a one-shot through; key and legato fade out after note-off.
 DEFAULT_RELEASE = {"oneshot": 255, "key": 128, "legato": 128}
+# What a key a change added (it wasn't in the pad's settings before) goes back to on undo: the
+# value the pad behaved as having. Other added keys only matter if the pad had a sound.
+UNSET_VALUES = {"sym": 0, "midi.channel": 0, "sample.start": 0}
 
 # Friendly setting -> (device key, lowest, highest)
 RANGES = {
@@ -113,6 +116,22 @@ def describe(pad: Pad, metadata: Dict[str, Any]) -> Dict[str, Any]:
         "release": metadata.get("envelope.release") if sound else None,
         "pan": metadata.get("sound.pan") if sound else None,
     }
+
+
+def _restoring(before: Dict[str, Any], changes: Dict[str, Any]) -> Dict[str, Any]:
+    """The keys to write to undo a change: each changed key as it was before."""
+    had_sound = bool(before.get("sym"))
+    restore: Dict[str, Any] = {}
+    for key in changes:
+        if key in before:
+            restore[key] = before[key]
+        elif key in UNSET_VALUES:
+            restore[key] = UNSET_VALUES[key]
+        elif had_sound:
+            raise PadError(f"can't undo: the pad had no {key} before, and there's no way to remove it")
+    if "sound.playmode" in restore and restore.get("envelope.release") is None:
+        restore["envelope.release"] = before.get("envelope.release", DEFAULT_RELEASE["oneshot"])
+    return restore
 
 
 def changes_for(settings: Dict[str, Any], current: Dict[str, Any], sound_frames: Optional[int] = None) -> Dict[str, Any]:
@@ -246,9 +265,7 @@ class PadEditor:
             raise PadError("no pad changes to undo")
         last = history[-1]
         target = parse_pad(last["pad"])
-        restore = {key: last["before"].get(key) for key in last["changes"] if key in last["before"]}
-        if "sound.playmode" in restore and restore.get("envelope.release") is None:
-            restore["envelope.release"] = last["before"].get("envelope.release", DEFAULT_RELEASE["oneshot"])
+        restore = _restoring(last["before"], last["changes"])
         with self.client.session("pads: undo") as session:
             if _active_project(session) != last["project"]:
                 raise PadError(f"the last change was to project {last['project']}; open it on the device to undo it")
@@ -257,6 +274,9 @@ class PadEditor:
             session.set_metadata(node, restore)
             time.sleep(SETTLE_SECONDS)
             after = session.metadata(node)
+        missed = sorted(key for key, value in restore.items() if after.get(key) != value)
+        if missed:   # keep the change in the history, so undo can be tried again
+            raise PadError(f"the device didn't put back {target.label}'s {', '.join(missed)}")
         self._save_history(history[:-1])
         self.events.publish("pad", pad=target.label, project=last["project"], settings=describe(target, after))
         return {"pad": target.label, "after": describe(target, after),

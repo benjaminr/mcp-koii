@@ -14,8 +14,8 @@ OLD_HOME_FOLDER = ".koii"
 
 
 def setting(name: str, default: str) -> str:
-    """The environment setting KOII_STUDIO_<name>, or KOII_<name>, or the default."""
-    return os.environ.get(f"KOII_STUDIO_{name}", os.environ.get(f"KOII_{name}", default))
+    """The environment setting KOII_STUDIO_<name>, or KOII_<name>, or the default (an empty one counts as unset)."""
+    return os.environ.get(f"KOII_STUDIO_{name}") or os.environ.get(f"KOII_{name}") or default
 
 
 def default_home() -> Path:

@@ -247,9 +247,12 @@ class SoundDesigner:
         return self._start_upload_job(style, items, first_slot)
 
     def _start_upload_job(self, label: str, items: List[Dict[str, Any]], first_slot: Optional[int]) -> Dict[str, Any]:
-        if self._kit_job and self._kit_job.is_alive():
-            raise UploadRefused("a kit is already uploading")
-        first = first_slot or self.free_run(len(items))
+        self.samples.claim_batch(f"the {label} kit upload")
+        try:
+            first = first_slot or self.free_run(len(items))
+        except Exception:
+            self.samples.release_batch()
+            raise
         self._kit_progress = {"style": label, "first": first, "total": len(items), "done": 0, "slots": [], "error": None}
         self._kit_job = threading.Thread(target=self._upload_kit, args=(label, items, first), daemon=True,
                                          name="koii-studio-kit-upload")
@@ -268,6 +271,12 @@ class SoundDesigner:
         return "\n".join(lines)
 
     def _upload_kit(self, style: str, items: List[Dict[str, Any]], first: int) -> None:
+        try:
+            self._upload_kit_items(style, items, first)
+        finally:
+            self.samples.release_batch()
+
+    def _upload_kit_items(self, style: str, items: List[Dict[str, Any]], first: int) -> None:
         self.events.publish("kit", stage="start", style=style, first=first, total=len(items))
         for offset, item in enumerate(items):
             slot = first + offset

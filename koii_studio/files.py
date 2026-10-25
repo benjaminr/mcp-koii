@@ -364,6 +364,8 @@ class Session:
             body = self.request(bytes([0x03, 0x01]) + _u16(page))
             if len(body) < 2 or int.from_bytes(body[:2], "big") != page:
                 raise DeviceFileError(f"reading node {node} went out of step at page {page}")
+            if len(body) == 2:   # an empty page: asking for more would only read past the end
+                raise DeviceFileError(f"node {node} ended after {len(data)} of the {size} bytes it said it holds")
             data.extend(body[2:])
             page += 1
             if progress:

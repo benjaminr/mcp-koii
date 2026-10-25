@@ -6,6 +6,7 @@ import pytest
 
 from koii_studio.config import default_home, setting
 from koii_studio.library import Library
+from koii_studio.visualiser import DEFAULT_PORT, web_port
 
 
 @pytest.fixture
@@ -54,3 +55,16 @@ def test_settings_still_answer_to_their_names_from_before_the_rename(home, monke
 def test_a_home_set_with_the_old_setting_is_still_used(home, monkeypatch):
     monkeypatch.setenv("KOII_HOME", str(home / "elsewhere"))
     assert default_home() == home / "elsewhere"
+
+
+def test_an_empty_new_setting_doesnt_hide_the_old_one(home, monkeypatch):
+    monkeypatch.setenv("KOII_STUDIO_HOME", "")
+    monkeypatch.setenv("KOII_HOME", str(home / "elsewhere"))
+    assert default_home() == home / "elsewhere"
+
+
+def test_a_port_that_isnt_a_number_falls_back_to_the_default(home, monkeypatch):
+    monkeypatch.setenv("KOII_STUDIO_WEB_PORT", "auto")
+    assert web_port() == DEFAULT_PORT
+    monkeypatch.setenv("KOII_STUDIO_WEB_PORT", "9200")
+    assert web_port() == 9200

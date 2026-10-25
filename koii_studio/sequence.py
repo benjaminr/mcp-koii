@@ -11,7 +11,7 @@ from typing import Callable, List, Optional, Tuple
 
 import mido
 
-from koii_studio.notation import HOLD, Issue, NotationError, Pattern, parse_arrangement
+from koii_studio.notation import HOLD, Issue, NotationError, Pattern, parse_arrangement, tempo_override
 
 # A channel of None means "the connection's default channel".
 NOTE_OFF, NOTE_ON = 0, 1
@@ -112,6 +112,7 @@ def expand(
     """
     if _depth > 8:
         raise NotationError([Issue(0, None, "songs nest too deeply (does a song include itself?)")])
+    bpm = tempo_override(bpm)
     sections: List[Section] = []
     issues = []
     for part in parse_arrangement(arrangement):

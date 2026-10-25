@@ -165,8 +165,7 @@ class PackStore:
         return self._start(pack, "removing", f"removing '{name}'…", self.remove)
 
     def _start(self, pack: Pack, stage: str, message: str, work: Callable, *args) -> Dict[str, Any]:
-        if self._job and self._job.is_alive():
-            raise PackError(f"already busy with {self._status.get('pack')}; wait for it to finish")
+        self.samples.claim_batch(f"the '{pack.name}' pack")
         self._status = {"running": True, "pack": pack.name, "stage": stage, "done": 0, "total": 0, "error": None}
         self._job = threading.Thread(target=self._run, args=(work, pack, *args), name="koii-studio-pack", daemon=True)
         self._job.start()
@@ -179,6 +178,8 @@ class PackStore:
         except Exception as error:  # report anything; the device and files are left as they are
             logger.exception("pack job failed")
             self._status.update(running=False, stage="failed", error=str(error))
+        finally:
+            self.samples.release_batch()
         self.events.publish("pack", **self._status)
 
     def _progress(self, stage: str, done: int, total: int, detail: str = "") -> None:
@@ -205,7 +206,7 @@ class PackStore:
                 continue
             audio = load_for_device(pack.sample_path(sample).read_bytes())
             slot = self.samples.suggest_slot(also_taken=used)
-            self.samples.upload(slot, to_pcm(audio), sample["name"], audio.shape[0], sample.get("settings"))
+            self.samples.upload(slot, to_pcm(audio), sample["name"], audio.shape[0], sample.get("settings"), listing)
             used.add(slot)
             record["slots"][sample["id"]] = slot
             state[pack.name] = record
@@ -250,11 +251,15 @@ class PackStore:
             raise PackError(f"'{pack.name}' isn't installed")
         slots = dict(record["slots"])
         self.pads.open_project(record["project"])
-        pads = [pad for pad, source in pack.manifest.get("pads", {}).items() if "sample" in source]
+        pads = {pad: slots.get(source["sample"]) for pad, source in pack.manifest.get("pads", {}).items()
+                if "sample" in source}
         total = len(pads) + len(slots)
-        for index, pad in enumerate(pads):
+        emptied = 0
+        for index, (pad, slot) in enumerate(pads.items()):
             self._progress("emptying pads", index, total, pad)
-            self.pads.set(pad, sound=0)
+            if self.pads.get(pad=pad)["pads"][0]["sound"] == slot:   # leave pads you've given another sound
+                self.pads.set(pad, sound=0)
+                emptied += 1
         deleted = 0
         for index, (sample, slot) in enumerate(slots.items(), start=len(pads)):
             self._progress("deleting", index, total, sample)
@@ -266,7 +271,7 @@ class PackStore:
         del state[pack.name]
         self._save_state(state)
         self.events.publish("samples", stage="changed")
-        return {"message": f"removed '{pack.name}': {deleted} samples deleted, {len(pads)} pads emptied in project "
+        return {"message": f"removed '{pack.name}': {deleted} samples deleted, {emptied} pads emptied in project "
                            f"{record['project']}; its songs stay in the library"}
 
     # -- state ------------------------------------------------------------------------

@@ -10,7 +10,7 @@ from koii_studio.backup import backup_device
 from koii_studio.events import EventBus
 from koii_studio.packs import PackError, PackStore, read_pack
 from koii_studio.pads import PadEditor
-from koii_studio.samples import DeviceLibrary
+from koii_studio.samples import DeviceLibrary, UploadRefused
 from koii_studio.synth.edit import wav_bytes
 
 from fake_device import FakeEP133, client_for, sound
@@ -107,3 +107,26 @@ def test_a_broken_pack_is_refused_clearly(tmp_path):
     folder = make_pack(tmp_path, pads={"B.": {"sample": "missing"}})
     with pytest.raises(PackError, match="uses sample 'missing'"):
         read_pack(folder)
+
+
+def test_removing_a_pack_leaves_pads_given_another_sound_since(store):
+    fake, packs, _ = store
+    packs.install(packs.get("tiny"), project=9)
+    packs.pads.set("B0", sound=KICK)                         # the stab's pad, now playing something else
+    result = packs.remove(packs.get("tiny"))
+    assert fake.pads[11310]["sym"] == 0                       # B. still played the pack's vox: emptied
+    assert fake.pads[11311]["sym"] == KICK                    # B0 kept
+    assert "1 pads emptied" in result["message"]
+
+
+def test_a_pack_waits_for_a_kit_upload_to_finish(store):
+    _, packs, _ = store
+    packs.samples.claim_batch("the house kit upload")
+    with pytest.raises(UploadRefused, match="house kit upload is still writing"):
+        packs.start_install("tiny", 9)
+    packs.samples.release_batch()
+    packs.start_install("tiny", 9)
+    packs._job.join(timeout=10)
+    assert packs.status()["stage"] == "done"
+    packs.samples.claim_batch("a kit")                        # the pack let go when it finished
+    packs.samples.release_batch()

@@ -94,6 +94,15 @@ def test_notation_errors_come_before_needing_a_device(studio):
         studio.play("kick: x...")
 
 
+def test_a_tempo_to_play_at_is_checked_like_bpm(studio):
+    studio.save_pattern("beat", "kick: x...x...")
+    with pytest.raises(NotationError, match="bpm needs a whole number"):
+        studio.play("beat", bpm="fast")
+    with pytest.raises(NotationError, match="bpm needs a whole number"):
+        studio.arrangement_info("beat x2", bpm=1000)
+    assert studio.arrangement_info("beat x2", bpm="140")["sections"][0]["bpm"] == 140
+
+
 # -- playback -----------------------------------------------------------------
 
 def test_plays_the_pattern_on_the_connection_channel(studio, port):

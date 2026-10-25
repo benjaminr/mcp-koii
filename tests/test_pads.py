@@ -106,3 +106,32 @@ def test_another_project_can_be_opened_and_its_pads_set(device, monkeypatch):
     assert editor.open_project(9)["message"] == "project 9 is open already"
     with pytest.raises(PadError, match="projects are 1–9"):
         editor.open_project(10)
+
+
+def test_undo_takes_off_a_channel_the_pad_didnt_have_before(device):
+    fake, editor, _ = device
+    del fake.pads[CHORDS_PAD]["midi.channel"]
+    editor.set("D1", channel=3)
+    result = editor.undo()
+    assert fake.pads[CHORDS_PAD]["midi.channel"] == 0
+    assert result["after"]["channel"] is None
+    with pytest.raises(PadError, match="no pad changes"):
+        editor.undo()
+
+
+def test_an_undo_the_device_didnt_take_can_be_tried_again(device, monkeypatch):
+    fake, editor, _ = device
+    editor.set("D1", level=60)
+    real_handle = fake._handle
+
+    def ignoring_writes(payload):   # the device answers, but keeps the pad as it is
+        if payload[0] == 0x07 and payload[1] == 0x01:
+            return 0, b""
+        return real_handle(payload)
+
+    monkeypatch.setattr(fake, "_handle", ignoring_writes)
+    with pytest.raises(PadError, match="didn't put back"):
+        editor.undo()
+    monkeypatch.setattr(fake, "_handle", real_handle)
+    editor.undo()
+    assert fake.pads[CHORDS_PAD]["sound.amplitude"] == 100
