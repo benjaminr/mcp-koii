@@ -2,7 +2,7 @@
 
 Make beats, songs and sounds for the Teenage Engineering EP-133 K.O. II, with Claude.
 
-<img src="./screenshot.jpg" alt="koii studio: the simulated EP-133, a boom-bap pattern with a bassline in the grid editor, and the pattern list" width="900">
+<img src="./screenshots/overview.jpg" alt="koii studio: the simulated EP-133, a boom-bap pattern with a bassline in the grid editor, and the pattern list" width="900">
 
 An MCP server that lets Claude make beats and songs with you on an EP-133 K.O. II over MIDI.
 You talk about the music; Claude writes patterns in a small, strict text notation, plays
@@ -59,7 +59,8 @@ It shows everything that happens, whoever does it: Claude's tool calls, your edi
 pads you press on the device.
 
 It has four views, one per job, switched from the top bar (and linked: `#beat`, `#song`,
-`#sounds`, `#device`):
+`#sounds`, `#device`). **[GUIDE.md](GUIDE.md)** walks through each one with annotated
+screenshots.
 
 | View | For | What's in it |
 |------|-----|--------------|
@@ -253,5 +254,5 @@ including commercially, as long as the copyright notice stays with it.
 
 Audio isn't part of koii studio: packs bring their own, with their sources credited in each
 `pack.json`. The demo packs made while building it use only public-domain recordings.
-Screenshot: koii studio's own page. koii studio isn't affiliated with or endorsed by teenage engineering; EP-133 and
+Screenshots: koii studio's own page. koii studio isn't affiliated with or endorsed by teenage engineering; EP-133 and
 K.O. II are their trademarks.

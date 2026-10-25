@@ -873,7 +873,7 @@ function startViews() {
 // -- controls ---------------------------------------------------------------------
 
 function selectTab(name) {
-  for (const tab of document.querySelectorAll(".tab")) tab.classList.toggle("active", tab.dataset.tab === name);
+  for (const tab of document.querySelectorAll(".tab[data-tab]")) tab.classList.toggle("active", tab.dataset.tab === name);
   for (const body of ["grid", "text", "notation"]) $(`#tab-${body}`).hidden = body !== name;
 }
 
@@ -911,7 +911,7 @@ function bindControls() {
     if (!event.target.closest(".connection")) $("#connection-menu").hidden = true;
   });
 
-  for (const tab of document.querySelectorAll(".tab")) tab.addEventListener("click", () => selectTab(tab.dataset.tab));
+  for (const tab of document.querySelectorAll(".tab[data-tab]")) tab.addEventListener("click", () => selectTab(tab.dataset.tab));
 
   $("#text").addEventListener("input", (event) => {
     const now = Date.now();
