@@ -4,11 +4,11 @@ import zlib
 
 import pytest
 
-from koii import files
-from koii.backup import backup_device
-from koii.events import EventBus
-from koii.files import DeviceFileError
-from koii.samples import DeviceLibrary, UploadRefused
+from koii_studio import files
+from koii_studio.backup import backup_device
+from koii_studio.events import EventBus
+from koii_studio.files import DeviceFileError
+from koii_studio.samples import DeviceLibrary, UploadRefused
 
 from fake_device import FakeEP133, client_for, sound
 
@@ -50,7 +50,7 @@ def test_an_upload_is_written_page_by_page_and_checked(setup):
 def test_koii_never_overwrites_sounds_it_didnt_upload(setup):
     fake, client, library, home = setup
     backup_device(client, home / "backups")
-    with pytest.raises(UploadRefused, match="koii didn't put there"):
+    with pytest.raises(UploadRefused, match="koii studio didn't put there"):
         library.upload(600, tone(), "oops")
     assert fake.sounds[600][0] == "factory pad"
     assert library.suggest_slot() == 601
@@ -74,7 +74,7 @@ def test_a_sound_changed_on_the_device_is_no_longer_treated_as_ours(setup):
     library.upload(601, tone(), "mine")
     name, data, metadata = fake.sounds[601]
     fake.sounds[601] = sound("resampled on the device", data[::-1])
-    with pytest.raises(UploadRefused, match="koii didn't put there"):
+    with pytest.raises(UploadRefused, match="koii studio didn't put there"):
         library.upload(601, tone(), "again")
 
 
@@ -95,7 +95,7 @@ def test_a_corrupted_write_is_reported(setup, monkeypatch):
         library.upload(601, tone(), "damaged")
     assert library.uploads()[601]["unfinished"]            # not a finished upload …
     monkeypatch.setattr(fake, "_handle", original)
-    library.upload(601, tone(), "redone")                   # … but koii may redo its own write
+    library.upload(601, tone(), "redone")                   # … but koii studio may redo its own write
     assert not library.uploads()[601].get("unfinished")
 
 
@@ -129,5 +129,5 @@ def test_an_upload_that_fails_after_writing_can_be_retried(setup, monkeypatch):
     for name in ("PAGE_PAUSE_SECONDS", "PUT_PAGE_PAUSE_SECONDS", "PREFLIGHT_SECONDS"):
         monkeypatch.setattr(files, name, 0)
     assert library.suggest_slot() != 601                                 # not offered as empty any more
-    library.upload(601, tone(), "retried")                               # but koii may finish its own upload
+    library.upload(601, tone(), "retried")                               # but koii studio may finish its own upload
     assert fake.sounds[601][2]["name"] == "retried"

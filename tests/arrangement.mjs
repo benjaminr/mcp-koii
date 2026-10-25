@@ -1,7 +1,7 @@
 // Reads arrangement texts (JSON array) on stdin and writes how the browser's arranger reads
 // each one: { sections, text } or { error }. Used by test_validation.py to check the grid
 // reads arrangements the way the server does.
-import { arrangementText, parseArrangement } from "../koii/static/arranger.js";
+import { arrangementText, parseArrangement } from "../koii_studio/static/arranger.js";
 
 let input = "";
 process.stdin.setEncoding("utf8");

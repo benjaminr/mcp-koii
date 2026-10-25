@@ -7,17 +7,17 @@ import wave
 import numpy as np
 import pytest
 
-from koii import files
-from koii.backup import backup_device
-from koii.events import EventBus
-from koii.samples import DeviceLibrary, UploadRefused
-from koii.sound_design import SoundDesigner
-from koii.synth import edit, presets
-from koii.synth.analysis import detect_pitch
-from koii.synth.designs import DesignStore
-from koii.synth.engine import render
-from koii.synth.schema import DesignError
-from koii.synth.sources import SourceStore
+from koii_studio import files
+from koii_studio.backup import backup_device
+from koii_studio.events import EventBus
+from koii_studio.samples import DeviceLibrary, UploadRefused
+from koii_studio.sound_design import SoundDesigner
+from koii_studio.synth import edit, presets
+from koii_studio.synth.analysis import detect_pitch
+from koii_studio.synth.designs import DesignStore
+from koii_studio.synth.engine import render
+from koii_studio.synth.schema import DesignError
+from koii_studio.synth.sources import SourceStore
 
 from fake_device import FakeEP133, client_for, sound
 
@@ -222,7 +222,7 @@ def test_a_bounce_longer_than_a_minute_is_refused(studio):
 
 
 def test_loops_outside_the_devices_tempo_range_fold_into_it():
-    from koii.sound_design import device_tempo
+    from koii_studio.sound_design import device_tempo
     assert device_tempo(50, 1) == {"bpm": 100, "bars": 2}        # the same length, twice as fast
     assert device_tempo(200, 2) == {"bpm": 100.0, "bars": 1.0}
     with pytest.raises(DesignError, match="0.25–4 bars"):

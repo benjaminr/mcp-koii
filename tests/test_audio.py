@@ -3,7 +3,7 @@ import wave
 
 import pytest
 
-from koii.audio import DEVICE_RATE, read_wav, resample, wav_for_device
+from koii_studio.audio import DEVICE_RATE, read_wav, resample, wav_for_device
 
 
 def write_wav(path, rate, channels, width, frames):

@@ -1,4 +1,6 @@
-# MCP Interface for Teenage Engineering EP-133 K.O. II
+# koii studio
+
+Make beats, songs and sounds for the Teenage Engineering EP-133 K.O. II, with Claude.
 
 <img src="./mcp.jpg" width="318"><img src="./koii.jpg" width="200">
 
@@ -28,13 +30,13 @@ uv venv --python 3.12 .venv
 uv pip install -r requirements.txt
 
 # Add to Claude Desktop
-mcp install koii_server.py --name koii -e .
+mcp install koii_studio_server.py --name koii-studio -e .
 
 # Or try it in the MCP inspector
-mcp dev koii_server.py -e .
+mcp dev koii_studio_server.py -e .
 ```
 
-For Claude Code: `claude mcp add koii -- /path/to/mcp-koii/.venv/bin/python /path/to/mcp-koii/koii_server.py`.
+For Claude Code: `claude mcp add koii-studio -- /path/to/mcp-koii/.venv/bin/python /path/to/mcp-koii/koii_studio_server.py`.
 
 ## Making music
 
@@ -45,7 +47,7 @@ or use the `make_a_beat` prompt. A typical session:
 2. Claude writes a pattern, checks it with `check_pattern`, and runs `play(..., loop=True)`.
 3. You say what to change. Each new `play` switches **at the end of the current loop**,
    so the groove never stops while you iterate.
-4. `save_pattern("verse", ...)` keeps versions you like (saved to `~/.koii/library.json`).
+4. `save_pattern("verse", ...)` keeps versions you like (saved to `~/.koii-studio/library.json`).
 5. `save_song("track", "intro x2, verse x4, verse+bassline x4, chorus x8, outro")` and
    `play("track")`.
 6. `export_midi("track")` writes a `.mid` file for your DAW.
@@ -127,13 +129,13 @@ separately.
   - **Kit:** twelve sounds in a style (808, 909, lofi, acoustic, industrial, glitch).
   - **Upload:** detects the root note and fine tune, finds a seamless loop and sets the
     play mode, so pads play in tune and sustain. Uploads need a complete backup, never
-    touch sounds koii didn't upload, and are checked against the device's own checksum.
+    touch sounds koii studio didn't upload, and are checked against the device's own checksum.
     See **[SOUND_DESIGN.md](SOUND_DESIGN.md)**.
 - **Your own layout:** press **layout** to move modules (drag a header), resize them (drag
   the corner) and hide them; reorder or hide the parts inside them; and drag the line
   between two-column areas. **▾** collapses a module at any time. The layout is kept in
   this browser; **reset** goes back to the default.
-- **Packs:** demos and kits in `~/.koii/packs`, each with its samples, a project's pad
+- **Packs:** demos and kits in `~/.koii-studio/packs`, each with its samples, a project's pad
   layout, patterns, songs and credits. **Install** uploads the samples to empty slots
   (reusing any already there), opens the project and fills its pads, and adds the songs;
   **remove samples** deletes them to free space and empties their pads, keeping the songs.
@@ -145,9 +147,9 @@ separately.
 - **No device?** Choose *Browser simulator* (top right) and the page plays synthesised
   drums and bass itself.
 
-To run it without Claude: `python -m koii.visualiser` (or `koii-visualiser`). It connects to
+To run it without Claude: `python -m koii_studio.visualiser` (or `koii-studio`). It connects to
 the EP-133 on start if it's plugged in (`--no-connect` to skip that). Settings:
-`KOII_WEB_PORT` (default 8133; the next free port is used if it's taken) and `KOII_WEB=off`
+`KOII_STUDIO_WEB_PORT` (default 8133; the next free port is used if it's taken) and `KOII_STUDIO_WEB=off`
 to disable it. It only listens on localhost and ignores commands from other websites.
 
 ## The notation
@@ -187,8 +189,8 @@ sources and what has been checked on hardware, are in **[DEVICE.md](DEVICE.md)**
 | `export_midi` | write a `.mid` file (no device needed) |
 | `export_musicxml` | write sheet music for a pattern (MuseScore, Dorico, Sibelius…) |
 | `list_device_sounds`, `play_sample` | the samples stored on the EP-133 |
-| `backup_device`, `cancel_backup` | copy every sample (WAV) and project to `~/.koii/backups` |
-| `upload_sample`, `delete_upload` | put a WAV on the device (converted to 46,875 Hz), or remove koii's own uploads |
+| `backup_device`, `cancel_backup` | copy every sample (WAV) and project to `~/.koii-studio/backups` |
+| `upload_sample`, `delete_upload` | put a WAV on the device (converted to 46,875 Hz), or remove koii studio's own uploads |
 | `sound_presets`, `sound_design_schema` | starting points, and every engine, effect and setting |
 | `design_sound`, `vary_sound`, `morph_sounds` | render and describe a design (shown in the visualiser), make variations, morph |
 | `save_design`, `list_designs` | the design library, plus recorded and loaded sources |
@@ -213,14 +215,14 @@ The tests check the notation from several sides: parser fuzzing, generated patte
 sheet music must match what plays, MusicXML re-read by [music21](https://www.music21.org/),
 and a round trip through the browser editor's own JavaScript (needs Node).
 
-The code is in `koii/`: `notation` (parser), `sequence` (timing, swing, arrangements,
+The code is in `koii_studio/`: `notation` (parser), `sequence` (timing, swing, arrangements,
 MIDI files), `player` (background playback), `library` (persistence), `studio` (ties it
 together), `events` (live updates), `visualiser` (the web server, with the page in
-`koii/static/`) and `server` (MCP tools). Device files: `files` (the SysEx file protocol),
-`backup` and `samples`. Sound design: `koii/synth/` (`schema` is the design format,
+`koii_studio/static/`) and `server` (MCP tools). Device files: `files` (the SysEx file protocol),
+`backup` and `samples`. Sound design: `koii_studio/synth/` (`schema` is the design format,
 `engine` and `dsp` render it, `analysis`, `instrument` for device settings, `variation`,
 `edit`, `presets`, and the `designs`, `sources` and `factory` stores), joined up by
-`sound_design`. Set `KOII_HOME` to keep the library, designs and sources somewhere else.
+`sound_design`. Set `KOII_STUDIO_HOME` to keep the library, designs and sources somewhere else.
 
 ## Acknowledgements
 
@@ -230,9 +232,9 @@ together), `events` (live updates), `visualiser` (the web server, with the page 
 
 ## Licence
 
-koii is free software under the [MIT licence](LICENSE): use it, change it and share it,
+koii studio is free software under the [MIT licence](LICENSE): use it, change it and share it,
 including commercially, as long as the copyright notice stays with it.
 
 The sample packs' recordings are public domain; their sources are credited in each
-`pack.json`. koii isn't affiliated with or endorsed by teenage engineering; EP-133 and
+`pack.json`. koii studio isn't affiliated with or endorsed by teenage engineering; EP-133 and
 K.O. II are their trademarks.

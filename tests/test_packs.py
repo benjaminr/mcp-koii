@@ -5,13 +5,13 @@ import json
 import numpy as np
 import pytest
 
-from koii import files
-from koii.backup import backup_device
-from koii.events import EventBus
-from koii.packs import PackError, PackStore, read_pack
-from koii.pads import PadEditor
-from koii.samples import DeviceLibrary
-from koii.synth.edit import wav_bytes
+from koii_studio import files
+from koii_studio.backup import backup_device
+from koii_studio.events import EventBus
+from koii_studio.packs import PackError, PackStore, read_pack
+from koii_studio.pads import PadEditor
+from koii_studio.samples import DeviceLibrary
+from koii_studio.synth.edit import wav_bytes
 
 from fake_device import FakeEP133, client_for, sound
 
@@ -44,8 +44,8 @@ def make_pack(home, **overrides):
 def store(monkeypatch, tmp_path):
     for name in ("PAGE_PAUSE_SECONDS", "PUT_PAGE_PAUSE_SECONDS", "PREFLIGHT_SECONDS"):
         monkeypatch.setattr(files, name, 0)
-    monkeypatch.setattr("koii.pads.SETTLE_SECONDS", 0)
-    monkeypatch.setattr("koii.pads.PROJECT_SETTLE_SECONDS", 0)
+    monkeypatch.setattr("koii_studio.pads.SETTLE_SECONDS", 0)
+    monkeypatch.setattr("koii_studio.pads.PROJECT_SETTLE_SECONDS", 0)
     fake = FakeEP133({KICK: sound("kick grit", b"\x01\x00" * 600)}, active_project=2)
     client = client_for(fake, tmp_path / "lock")
     events = EventBus()

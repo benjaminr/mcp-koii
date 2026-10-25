@@ -3,11 +3,11 @@
 import numpy as np
 import pytest
 
-from koii.synth import presets, variation
-from koii.synth.analysis import analyse, crossfade_loop, detect_pitch, envelope_times, find_loop
-from koii.synth.engine import render
-from koii.synth.instrument import prepare
-from koii.synth.schema import DesignError, default_design, get_path, numeric_specs, validate
+from koii_studio.synth import presets, variation
+from koii_studio.synth.analysis import analyse, crossfade_loop, detect_pitch, envelope_times, find_loop
+from koii_studio.synth.engine import render
+from koii_studio.synth.instrument import prepare
+from koii_studio.synth.schema import DesignError, default_design, get_path, numeric_specs, validate
 
 RATE = 46875
 

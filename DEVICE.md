@@ -10,7 +10,7 @@ What this project relies on, where each fact comes from, and how sure we are.
 
 ## Capabilities at a glance
 
-| Area | Fact | Source | What koii does |
+| Area | Fact | Source | What koii studio does |
 |------|------|--------|----------------|
 | Connection | USB-C port named `EP-133`, MIDI in and out | hardware | finds it automatically |
 | Connection | Also a class-compliant USB audio device: 2 in / 2 out, 48 kHz on macOS | hardware | the visualiser's sound module listens to it |
@@ -27,7 +27,7 @@ What this project relies on, where each fact comes from, and how sure we are.
 | Control | Program change no longer switches sounds (since OS 2.0.2) | official | not used |
 | Control | Bank select (CC 0/32) reaches sounds 1–999 | official | not used |
 | Control | OS 2.5: CC 64 sustain for KEY/LEGATO pads; CC 12/13 drive FX X/Y | official | FX control planned |
-| Sync | MIDI clock in/out, sync 1/8, 1/16 or 24 PPQN, MIDI thru | official | koii plays notes itself and sends no clock |
+| Sync | MIDI clock in/out, sync 1/8, 1/16 or 24 PPQN, MIDI thru | official | koii studio plays notes itself and sends no clock |
 | Samples | 999 slots, 128 MB (64 MB on early units) | official | |
 | Samples | Library read over the private file protocol (SysEx): list, metadata, download, audition | hardware (community protocol) | `list_device_sounds`, the samples module, backups |
 | Samples | Stored as 16-bit **little-endian** PCM at 46,875 Hz (mono on this unit's factory sounds) | hardware | downloads convert to WAV |
@@ -35,7 +35,7 @@ What this project relies on, where each fact comes from, and how sure we are.
 | Samples | Reading runs at about 26 KB/s (about 20 minutes for 33 MB) | hardware | backups copy unchanged samples from the previous one |
 | Samples | Each sample has its own root note (e.g. slot 401 "s95x round" is F1, most are C4) | hardware | explains basslines sounding transposed |
 | Samples | The file system handles one session at a time; overlapping sessions freeze it until power-cycled | community | every session holds `/tmp/ep-device.lock` |
-| Samples | Uploading works: 433-byte pages, about 5 KB/s; the device computes the CRC-32 itself, so reading it back proves the sound arrived intact | hardware | uploads only to empty slots or koii's own, after a backup |
+| Samples | Uploading works: 433-byte pages, about 5 KB/s; the device computes the CRC-32 itself, so reading it back proves the sound arrived intact | hardware | uploads only to empty slots or koii studio's own, after a backup |
 | Samples | Sample names are at most 20 ASCII characters | community | names are trimmed |
 | Samples | Each sample's settings are JSON metadata: `sound.rootnote`, `sound.pitch` (fine tune, semitones), `sound.playmode` (`oneshot`, `key`, `legato`), `sound.loopstart`/`loopend` (frames; −1 for none), `envelope.attack`/`release` (0–255), `sound.amplitude` (0–100), `time.mode` (`off` or `bpm`), `sound.bpm`, `sound.bars` | hardware | designed sounds upload with these set |
 | Samples | Settings can be changed without touching the audio; the CRC stays the same | hardware | `change_sound_settings` |
@@ -43,13 +43,13 @@ What this project relies on, where each fact comes from, and how sure we are.
 | Samples | Tempo sync accepts 60–180 BPM and 0.25–4 bars; anything else is refused with "range error", including the `sound.bpm` 0.0 that factory sounds carry | hardware | bounces fold into the range (50 BPM × 1 bar is sent as 100 BPM × 2 bars) |
 | Samples | Factory loops use `key` or `legato` mode with a loop over the sustained part and a shorter release (64–128) | hardware (backup) | auto loops switch a one-shot to `key` |
 | Samples | To put a sample on a pad: SOUND, choose the pad, then − / + until the screen shows its number | official (quick start) | shown after each upload |
-| Sequencer | Patterns per group, bars per pattern, projects: sources conflict | unknown | doesn't apply: koii sequences live over MIDI |
+| Sequencer | Patterns per group, bars per pattern, projects: sources conflict | unknown | doesn't apply: koii studio sequences live over MIDI |
 
-**Live MIDI versus the device's sequencer.** koii plays patterns from the computer, note by
+**Live MIDI versus the device's sequencer.** koii studio plays patterns from the computer, note by
 note. The EP-133's own sequencer limits (patterns, bars, song positions) don't apply, but its
 sound engine's do: voices, play modes and which pads listen on which channel.
 
-**koii's own limits:** 4/4 only; steps of 1/4, 1/8, 1/16, 1/32 or 8th/16th triplets; up to
+**koii studio's own limits:** 4/4 only; steps of 1/4, 1/8, 1/16, 1/32 or 8th/16th triplets; up to
 1,024 steps per pattern; 20–300 BPM; swing 50–75 %; MIDI notes 0–127 on channels 1–16.
 Timing comes from the computer; scheduling is drift-free (tested within 10 ms), but USB MIDI
 latency to the device hasn't been measured.
@@ -135,7 +135,7 @@ On hardware, a C3–G3 run on channel 2 played the bass *and* the group B pads a
   keys pad on channel 3, four-note chords from D3 to C4 played only the keys, with no
   drum pads firing on the shared note numbers.
 
-**Pads can be set over USB** (koii's `set_pad`, or *pad settings* in the visualiser): each
+**Pads can be set over USB** (koii studio's `set_pad`, or *pad settings* in the visualiser): each
 pad is a node in the file tree (`3200 + (project − 1) × 1000 + group × 100 + n`, with `n`
 counting the keypad from the top row: 7 8 9 = 1–3, 4 5 6 = 4–6, 1 2 3 = 7–9, . 0 ENTER =
 10–12), and its settings are a small JSON object that merges like a sample's: `sym` (the

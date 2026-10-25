@@ -5,9 +5,9 @@ import time
 
 import pytest
 
-from koii.library import Library
-from koii.studio import Studio
-from koii.visualiser import Visualiser
+from koii_studio.library import Library
+from koii_studio.studio import Studio
+from koii_studio.visualiser import Visualiser
 
 
 @pytest.fixture
@@ -33,13 +33,13 @@ def request(visualiser, method, path, body=None, headers=None):
 
 
 def command(visualiser, name, body=None):
-    status, _, data = request(visualiser, "POST", f"/api/{name}", body or {}, {"X-Koii": "1"})
+    status, _, data = request(visualiser, "POST", f"/api/{name}", body or {}, {"X-Koii-Studio": "1"})
     return status, json.loads(data)
 
 
 def test_serves_the_page_and_its_scripts(visualiser):
     status, content_type, body = request(visualiser, "GET", "/")
-    assert status == 200 and content_type.startswith("text/html") and b"<title>koii visualiser</title>" in body
+    assert status == 200 and content_type.startswith("text/html") and b"<title>koii studio</title>" in body
     status, content_type, _ = request(visualiser, "GET", "/app.js")
     assert status == 200 and content_type.startswith("text/javascript")
 
@@ -51,7 +51,7 @@ def test_cannot_read_files_outside_the_static_folder(visualiser):
 
 def test_commands_from_other_websites_are_refused(visualiser):
     status, _, data = request(visualiser, "POST", "/api/stop", {})
-    assert status == 403 and b"X-Koii" in data
+    assert status == 403 and b"X-Koii-Studio" in data
     status, _, _ = request(visualiser, "GET", "/api/state", headers={"Host": "attacker.example"})
     assert status == 403
 
@@ -116,9 +116,9 @@ def test_downloading_sheet_music(visualiser):
 
 def test_the_browser_can_upload_a_sound_to_an_empty_slot(visualiser, tmp_path, monkeypatch):
     import base64
-    from koii import files
-    from koii.backup import backup_device
-    from koii.samples import DeviceLibrary
+    from koii_studio import files
+    from koii_studio.backup import backup_device
+    from koii_studio.samples import DeviceLibrary
     from fake_device import FakeEP133, client_for, sound
     for name in ("PAGE_PAUSE_SECONDS", "PUT_PAGE_PAUSE_SECONDS", "PREFLIGHT_SECONDS"):
         monkeypatch.setattr(files, name, 0)

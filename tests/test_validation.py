@@ -12,8 +12,8 @@ from pathlib import Path
 import pytest
 from hypothesis import given, settings, strategies as st
 
-from koii.notation import NotationError, parse_arrangement, parse_pattern, pattern_to_dict
-from koii.sequence import NOTE_OFF, NOTE_ON, compile_pattern
+from koii_studio.notation import NotationError, parse_arrangement, parse_pattern, pattern_to_dict
+from koii_studio.sequence import NOTE_OFF, NOTE_ON, compile_pattern
 
 from patterns import random_pattern_text
 

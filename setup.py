@@ -2,14 +2,14 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="mcp-koii",
+    name="koii-studio",
     version="0.4.0",
-    description="MCP Interface for EP-133 K.O. II",
+    description="koii studio: make beats, songs and sounds for the EP-133 K.O. II, with Claude over MCP",
     author="Ben Rowell",
     license="MIT",
     packages=find_packages(exclude=["tests"]),
-    py_modules=["koii_server"],
-    package_data={"koii": ["static/*"]},
+    py_modules=["koii_studio_server"],
+    package_data={"koii_studio": ["static/*"]},
     python_requires=">=3.9",
     install_requires=[
         "mido>=1.2.10",
@@ -20,8 +20,8 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "koii-server=koii.server:main",
-            "koii-visualiser=koii.visualiser:main",
+            "koii-studio-server=koii_studio.server:main",
+            "koii-studio=koii_studio.visualiser:main",
         ],
     },
     classifiers=[

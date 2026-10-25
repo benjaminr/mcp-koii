@@ -5,11 +5,11 @@ import time
 import mido
 import pytest
 
-from koii.library import Library, LibraryError
-from koii.notation import NotationError, parse_pattern
-from koii.player import Player
-from koii.sequence import layer
-from koii.studio import NotConnected, Studio
+from koii_studio.library import Library, LibraryError
+from koii_studio.notation import NotationError, parse_pattern
+from koii_studio.player import Player
+from koii_studio.sequence import layer
+from koii_studio.studio import NotConnected, Studio
 
 
 class FakePort:

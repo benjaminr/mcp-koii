@@ -1,6 +1,6 @@
 import pytest
 
-from koii.notation import (
+from koii_studio.notation import (
     HOLD, NotationError, looks_like_pattern, note_name, parse_arrangement, parse_note, parse_pattern,
     parse_target, render_pattern, strip_comment,
 )

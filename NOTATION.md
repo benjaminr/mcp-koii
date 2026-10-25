@@ -1,4 +1,4 @@
-# KOII Pattern Notation
+# koii studio pattern notation
 
 A small text format for writing beats, basslines and songs for the EP-133 K.O. II.
 It is designed to be easy to read, easy to write (by people and by Claude), and

@@ -5,10 +5,10 @@ import wave
 
 import pytest
 
-from koii import files
-from koii.backup import backup_device, latest_backup
-from koii.events import EventBus
-from koii.samples import DeviceLibrary
+from koii_studio import files
+from koii_studio.backup import backup_device, latest_backup
+from koii_studio.events import EventBus
+from koii_studio.samples import DeviceLibrary
 
 from fake_device import FakeEP133, client_for, sound
 

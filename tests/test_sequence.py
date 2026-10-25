@@ -3,8 +3,8 @@ from fractions import Fraction
 import mido
 import pytest
 
-from koii.notation import NotationError, parse_pattern
-from koii.sequence import NOTE_OFF, NOTE_ON, compile_pattern, expand, layer, timeline, to_midi_file
+from koii_studio.notation import NotationError, parse_pattern
+from koii_studio.sequence import NOTE_OFF, NOTE_ON, compile_pattern, expand, layer, timeline, to_midi_file
 
 
 def note_ons(events):

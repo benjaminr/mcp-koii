@@ -9,8 +9,8 @@ import wave
 
 import pytest
 
-from koii import files
-from koii.files import (
+from koii_studio import files
+from koii_studio.files import (
     DeviceBusy, DeviceFileError, DeviceUnhappy, Rejected, build_request, device_lock,
     match_response, pack7, pcm_to_wav, roughness, unpack7,
 )

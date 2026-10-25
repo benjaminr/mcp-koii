@@ -2,9 +2,9 @@
 
 import pytest
 
-from koii import files
-from koii.events import EventBus
-from koii.pads import PadEditor, PadError, changes_for, parse_pad
+from koii_studio import files
+from koii_studio.events import EventBus
+from koii_studio.pads import PadEditor, PadError, changes_for, parse_pad
 
 from fake_device import FakeEP133, client_for, sound
 
@@ -22,7 +22,7 @@ def pad(sym, **settings):
 def device(monkeypatch, tmp_path):
     for name in ("PAGE_PAUSE_SECONDS", "PUT_PAGE_PAUSE_SECONDS", "PREFLIGHT_SECONDS"):
         monkeypatch.setattr(files, name, 0)
-    monkeypatch.setattr("koii.pads.SETTLE_SECONDS", 0)
+    monkeypatch.setattr("koii_studio.pads.SETTLE_SECONDS", 0)
     fake = FakeEP133({PIANO: sound("clean keys", b"\x01\x00" * 2000, **{"envelope.attack": 0}),
                       604: sound("glass pad", b"\x02\x00" * 4000, **{"envelope.attack": 40})},
                      pads={CHORDS_PAD: pad(PIANO), 4310: pad(401, **{"midi.channel": 2})}, active_project=2)
@@ -99,7 +99,7 @@ def test_a_whole_group_can_be_read(device):
 
 def test_another_project_can_be_opened_and_its_pads_set(device, monkeypatch):
     fake, editor, _ = device
-    monkeypatch.setattr("koii.pads.PROJECT_SETTLE_SECONDS", 0)
+    monkeypatch.setattr("koii_studio.pads.PROJECT_SETTLE_SECONDS", 0)
     assert editor.open_project(9)["message"] == "project 9 is open (was 2)"
     editor.set("A.", sound=PIANO)
     assert fake.pads[11210]["sym"] == PIANO and fake.pads[CHORDS_PAD]["sym"] == PIANO   # project 2's pad untouched

@@ -6,8 +6,8 @@ from collections import deque
 
 import mido
 
-from koii import files, pads
-from koii.files import pack7, unpack7
+from koii_studio import files, pads
+from koii_studio.files import pack7, unpack7
 
 
 def sound(name, pcm, **metadata):

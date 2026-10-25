@@ -1,6 +1,6 @@
 # Sound design
 
-koii has a small synthesiser and sampler built for the EP-133. Designs are JSON. The
+koii studio has a small synthesiser and sampler built for the EP-133. Designs are JSON. The
 same engine renders them for Claude (over MCP), for the visualiser's designer (module 06)
 and for upload, so what you hear in the browser is what goes on the device.
 
@@ -114,7 +114,7 @@ delay). Most have a `mix`.
 In the visualiser's sample tab:
 
 - **Record** the EP-133's USB audio.
-- **Bounce** a pattern: koii plays it on the device once while the page records, and the
+- **Bounce** a pattern: koii studio plays it on the device once while the page records, and the
   result is trimmed to exactly its bars and starts on the first hit. It uploads with tempo
   sync on.
 - **Load** a file.

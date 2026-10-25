@@ -10,9 +10,9 @@ from fractions import Fraction
 import pytest
 from hypothesis import given, settings, strategies as st
 
-from koii.notation import GRIDS, NotationError, parse_pattern
-from koii.score import build_score, score_to_dict, score_to_musicxml, spell
-from koii.sequence import NOTE_ON, compile_pattern
+from koii_studio.notation import GRIDS, NotationError, parse_pattern
+from koii_studio.score import build_score, score_to_dict, score_to_musicxml, spell
+from koii_studio.sequence import NOTE_ON, compile_pattern
 
 from patterns import random_pattern_text
 

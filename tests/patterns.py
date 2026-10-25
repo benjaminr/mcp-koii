@@ -2,7 +2,7 @@
 
 import random
 
-from koii.notation import GRIDS
+from koii_studio.notation import GRIDS
 
 DRUM_NAMES = ["kick", "snare", "hat", "oh", "clap", "rim", "ride", "perc", "A7", "B3", "40"]
 STEP_SYMBOLS = list("xxxXo159") + ["."] * 8 + ["-"] * 3
